@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote_plus
 
-from icpms_intel.collectors import collect_crossref, collect_europe_pmc
+import pandas as pd
+
+from icpms_intel.collectors import (
+    collect_crossref, collect_europe_pmc, collect_gdelt_news, collect_nih_reporter,
+    collect_openalex, collect_rss, collect_sam_gov,
+)
 from icpms_intel.database import init_db, insert_signals, signals_df
-from icpms_intel.seed import DEFAULT_QUERIES, starter_signals
+from icpms_intel.seed import DEFAULT_QUERIES, GRANT_QUERIES, starter_signals
 from icpms_intel.snapshots import SNAPSHOT_PATH, STATUS_PATH, load_public_snapshot
 
 
@@ -25,10 +32,14 @@ def main() -> int:
         insert_signals(starter_signals(), db)
 
         jobs = []
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             for query in DEFAULT_QUERIES:
                 future = executor.submit(collect_europe_pmc, query, 730, 40)
                 jobs.append((future, "Europe PMC", query))
+
+            for query in GRANT_QUERIES:
+                future = executor.submit(collect_nih_reporter, query, 1095, 25)
+                jobs.append((future, "NIH RePORTER", query))
 
             for future, source_name, query in jobs:
                 try:
@@ -36,29 +47,77 @@ def main() -> int:
                 except Exception as exc:  # one source must not stop the full update
                     errors.append(f"{source_name} [{query}]: {exc}")
 
-        # Crossref is intentionally paced to respect its public rate limits.
+        # Crossref and OpenAlex are intentionally paced to respect public limits.
         for query in DEFAULT_QUERIES:
+            try:
+                collected.extend(collect_openalex(query, days=730, limit=40))
+            except Exception as exc:
+                errors.append(f"OpenAlex [{query}]: {exc}")
+            time.sleep(1)
             try:
                 collected.extend(collect_crossref(query, days=730, limit=40))
             except Exception as exc:
                 errors.append(f"Crossref [{query}]: {exc}")
             time.sleep(1)
 
+        news_queries = [
+            '"ICP-MS" (tender OR procurement OR installed OR commissioned)',
+        ]
+        for query in news_queries:
+            try:
+                collected.extend(collect_gdelt_news(query, limit=40))
+            except Exception as exc:
+                errors.append(f"GDELT [{query}]: {exc}")
+
+        rss_queries = [
+            '"ICP-MS" tender OR procurement',
+            '"ICP-MS" "new laboratory" OR installed OR commissioned',
+            '"ICP-MS" hiring OR vacancy OR analyst',
+        ]
+        for query in rss_queries:
+            feed_url = (
+                "https://news.google.com/rss/search?q=" + quote_plus(query)
+                + "&hl=en-AU&gl=AU&ceid=AU:en"
+            )
+            try:
+                collected.extend(collect_rss(feed_url, "Google News public RSS"))
+            except Exception as exc:
+                errors.append(f"Public news RSS [{query}]: {exc}")
+
+        sam_key = os.getenv("SAM_GOV_API_KEY", "").strip()
+        if sam_key:
+            for query in ('"ICP-MS"', '"mass spectrometer" elemental'):
+                try:
+                    collected.extend(collect_sam_gov(query, sam_key, days=90, limit=100))
+                except Exception as exc:
+                    errors.append(f"SAM.gov [{query}]: {exc}")
+
         inserted, skipped = insert_signals(collected, db)
-        snapshot = signals_df(db).drop(columns=["id", "collected_at"], errors="ignore")
+        snapshot = signals_df(db).drop(columns=["id", "collected_at", "raw_json"], errors="ignore")
+        snapshot["summary"] = snapshot["summary"].fillna("").astype(str).str.slice(0, 240)
         snapshot = snapshot.sort_values(["published_date", "title"], ascending=[False, True], na_position="last")
         snapshot.to_csv(SNAPSHOT_PATH, index=False)
+        # Fail before commit if a malformed or empty snapshot would replace good evidence.
+        check = pd.read_csv(SNAPSHOT_PATH)
+        required = {"title", "url", "source_name", "published_date", "sector", "signal_kind"}
+        if not required.issubset(check.columns) or len(check) < 8:
+            raise RuntimeError("Snapshot integrity check failed")
 
     status = {
         "last_attempt_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "successful": len(errors) == 0,
-        "sources": ["Crossref", "Europe PMC"],
-        "queries_run": len(DEFAULT_QUERIES),
+        "successful": bool(collected) and len(snapshot) >= 8,
+        "complete": len(errors) == 0,
+        "sources": ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "GDELT", "Public news RSS"]
+        + (["SAM.gov"] if sam_key else []),
+        "queries_run": (
+            len(DEFAULT_QUERIES) * 3 + len(GRANT_QUERIES) + len(news_queries)
+            + len(rss_queries) + (2 if sam_key else 0)
+        ),
         "records_received": len(collected),
         "new_records": inserted,
         "duplicates_skipped": skipped,
         "snapshot_records": len(snapshot),
-        "errors": errors,
+        "warnings": errors,
     }
     STATUS_PATH.write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(status, indent=2))

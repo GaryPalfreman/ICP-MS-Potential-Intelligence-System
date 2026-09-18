@@ -133,10 +133,16 @@ DEFAULT_QUERIES = [
     '"ICP-MS" critical minerals',
 ]
 
+GRANT_QUERIES = [
+    "inductively coupled plasma mass spectrometry",
+    "mass cytometry",
+    "trace element analysis",
+    "elemental impurities analysis",
+]
+
 
 def seed_database(path: str | None = None) -> tuple[int, int]:
     result = insert_signals(starter_signals(), path)
     for query in DEFAULT_QUERIES:
         add_watch_query(query, path)
     return result
-

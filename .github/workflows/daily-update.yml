@@ -25,8 +25,13 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Verify intelligence and snapshot logic
+        run: python -m pytest -q
       - name: Collect and deduplicate public evidence
         run: python -m scripts.daily_update
+        env:
+          SAM_GOV_API_KEY: ${{ secrets.SAM_GOV_API_KEY }}
+          OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}
       - name: Commit refreshed snapshot
         run: |
           if git diff --quiet -- data/public_signals.csv data/update_status.json; then

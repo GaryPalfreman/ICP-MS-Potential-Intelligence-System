@@ -1,6 +1,6 @@
 # ICP-MS Potential Intelligence System
 
-A deployable public-data market-intelligence application for monitoring ICP-MS trends, identifying potential organisations, mapping demand signals to product families, and testing future scenarios.
+A deployable public-data market-intelligence application for monitoring ICP-MS trends, identifying potential organisations, mapping demand signals to product families, testing predictions and exploring future scenarios.
 
 It contains **no private company data or company branding**.
 
@@ -8,11 +8,19 @@ It contains **no private company data or company branding**.
 
 - Evidence-backed dashboard with source URLs
 - Live collection from Crossref and Europe PMC
+- Live collection from OpenAlex and NIH RePORTER
+- Facility, hiring and installation announcements through GDELT public news
+- Optional SAM.gov tender collection with a free API key
 - RSS/Atom monitoring for approved public sources
 - Manual and CSV evidence ingestion
 - Automatic sector, signal and product-family classification
 - Recency, credibility, relevance and purchasing-intent scoring
 - Organisation-level corroboration scoring
+- Conservative organisation-name resolution
+- Evidence confidence, sales-stage and product-fit explanations
+- 90-day trend acceleration and a material-change daily briefing
+- Human signal review and score adjustments
+- Prediction outcome tracking with Brier-score calibration
 - Conservative/expected/accelerated Monte Carlo scenarios
 - Markdown, Excel, CSV and MiroFish-ready JSON exports
 - SQLite persistence
@@ -50,8 +58,25 @@ The included GitHub Actions workflow refreshes the public evidence snapshot ever
 **Actions** tab. Each successful snapshot commit triggers Streamlit Community Cloud to redeploy.
 
 The repository snapshot preserves automatically collected public evidence across Streamlit restarts.
-Manual entries made only through the running Streamlit app remain local to that runtime. For durable
-multi-user editing, replace SQLite with managed PostgreSQL and add authentication.
+Manual entries, reviews and outcome observations made through the running Streamlit app remain local
+to that runtime and can be exported as CSV. For durable multi-user editing, replace SQLite with managed
+PostgreSQL and add authentication.
+
+### Optional tender access
+
+SAM.gov requires a free API key. Add it to Streamlit secrets as:
+
+```toml
+SAM_GOV_API_KEY = "your-key"
+```
+
+Add the same key as a GitHub Actions repository secret to include SAM.gov results in
+the unattended daily snapshot. An optional `OPENALEX_MAILTO` secret identifies the
+project to OpenAlex and improves free API reliability.
+
+Other official procurement portals such as AusTender and EU TED can be monitored through approved
+RSS/Atom endpoints on the **Live Research** page. The app does not bypass access controls or scrape
+portals that do not provide an approved public feed.
 
 ## Recommended workflow
 
@@ -62,6 +87,21 @@ multi-user editing, replace SQLite with managed PostgreSQL and add authenticatio
 5. Review corroborated organisations.
 6. Test assumptions in **Scenario Lab**.
 7. Export the report, workbook or MiroFish seed pack.
+
+## Intelligence model
+
+The application deliberately separates three concepts:
+
+- **Evidence score** — strength, directness, recency and credibility of observed public evidence.
+- **Opportunity and confidence** — a research-priority estimate plus an explanation of corroboration and completeness.
+- **Scenario outlook** — conditional future cases; not a calibrated purchase probability.
+
+The sales-stage funnel runs from research activity through funding, expansion, hiring, procurement,
+installation and consumables demand. Direct tender and installation evidence outranks ordinary publication
+activity. Human review can mark evidence as relevant, strong, duplicated or incorrectly classified.
+
+The **Review & Backtesting** page records later public outcomes and calculates a Brier score. This allows
+the assumed weights to be assessed over time instead of presenting permanently untested precision.
 
 ## Scoring
 

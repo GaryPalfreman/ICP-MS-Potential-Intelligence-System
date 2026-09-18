@@ -16,7 +16,11 @@ def load_public_snapshot(path: Path = SNAPSHOT_PATH, db: str | None = None) -> t
     """Load the repository-backed public-data snapshot into the runtime database."""
     if not path.exists() or path.stat().st_size == 0:
         return 0, 0
-    rows = pd.read_csv(path).where(pd.notna, None).to_dict(orient="records")
+    frame = pd.read_csv(path)
+    required = {"title", "url", "source_name", "sector", "signal_kind"}
+    if not required.issubset(frame.columns):
+        return 0, 0
+    rows = frame.where(pd.notna, None).to_dict(orient="records")
     return insert_signals(rows, db)
 
 

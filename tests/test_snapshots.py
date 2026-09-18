@@ -9,7 +9,11 @@ from icpms_intel.snapshots import load_public_snapshot, read_update_status
 def test_snapshot_loads_and_deduplicates(tmp_path):
     snapshot = tmp_path / "signals.csv"
     db = str(tmp_path / "test.db")
-    pd.DataFrame([{"title": "Test ICP-MS signal", "url": "https://example.com/evidence"}]).to_csv(snapshot, index=False)
+    pd.DataFrame([{
+        "title": "Test ICP-MS signal", "url": "https://example.com/evidence",
+        "source_name": "Test source", "sector": "General ICP-MS",
+        "signal_kind": "Research activity",
+    }]).to_csv(snapshot, index=False)
     init_db(db)
     assert load_public_snapshot(snapshot, db) == (1, 0)
     assert load_public_snapshot(snapshot, db) == (0, 1)

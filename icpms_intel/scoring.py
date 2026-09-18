@@ -5,6 +5,8 @@ from datetime import date, datetime
 
 import pandas as pd
 
+from .intelligence import STAGE_ORDER, enrich_signals
+
 
 INTENT_WEIGHTS = {
     "Procurement": 1.00,
@@ -51,18 +53,21 @@ def score_signals(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def organization_scores(signals: pd.DataFrame, manual: pd.DataFrame | None = None) -> pd.DataFrame:
-    scored = score_signals(signals)
+    scored = enrich_signals(score_signals(signals))
     scored = scored[scored["organization"].fillna("").str.strip() != ""]
     if scored.empty:
         base = pd.DataFrame(columns=[
             "organization", "sector", "region", "signals", "latest_signal",
             "opportunity_score", "evidence_strength", "top_product",
+            "sales_stage", "confidence", "independent_sources", "signal_types",
         ])
     else:
         grouped = []
         for org, group in scored.groupby("organization"):
             scores = sorted(group["opportunity_score"].tolist(), reverse=True)
             combined = 100 * (1 - math.prod(1 - min(s / 100, 0.95) * 0.55 for s in scores[:6]))
+            stage = max(group["sales_stage"], key=lambda value: STAGE_ORDER.get(value, 1))
+            confidence = min(float(group["evidence_confidence"].mean()) + min(group["source_name"].nunique() - 1, 3) * 4, 96)
             grouped.append({
                 "organization": org,
                 "sector": group["sector"].mode().iat[0],
@@ -71,7 +76,11 @@ def organization_scores(signals: pd.DataFrame, manual: pd.DataFrame | None = Non
                 "latest_signal": group["published_date"].dropna().max() if group["published_date"].notna().any() else "",
                 "opportunity_score": round(min(combined, 100), 1),
                 "evidence_strength": "High" if len(group) >= 3 else "Medium" if len(group) == 2 else "Early",
-                "top_product": group["product_family"].mode().iat[0],
+                "top_product": group["recommended_product"].mode().iat[0],
+                "sales_stage": stage,
+                "confidence": round(confidence, 1),
+                "independent_sources": int(group["source_name"].nunique()),
+                "signal_types": ", ".join(group["signal_kind"].value_counts().head(3).index),
             })
         base = pd.DataFrame(grouped)
     if manual is not None and not manual.empty:
@@ -85,7 +94,10 @@ def organization_scores(signals: pd.DataFrame, manual: pd.DataFrame | None = Non
             "opportunity_score": 10.0,
             "evidence_strength": "Watchlist",
             "top_product": "Unassigned",
+            "sales_stage": "Research activity",
+            "confidence": 20.0,
+            "independent_sources": 0,
+            "signal_types": "Watchlist",
         })
         base = pd.concat([base, extra], ignore_index=True)
     return base.sort_values(["opportunity_score", "signals"], ascending=False)
-

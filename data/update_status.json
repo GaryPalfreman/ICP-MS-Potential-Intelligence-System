@@ -1,14 +1,20 @@
 {
-  "last_attempt_utc": "2026-09-18T11:11:26+00:00",
+  "last_attempt_utc": "2026-09-18T11:42:51+00:00",
   "successful": true,
+  "complete": false,
   "sources": [
     "Crossref",
-    "Europe PMC"
+    "Europe PMC",
+    "OpenAlex",
+    "NIH RePORTER",
+    "GDELT"
   ],
-  "queries_run": 7,
-  "records_received": 560,
-  "new_records": 30,
-  "duplicates_skipped": 530,
-  "snapshot_records": 438,
-  "errors": []
+  "queries_run": 26,
+  "records_received": 915,
+  "new_records": 47,
+  "duplicates_skipped": 868,
+  "snapshot_records": 769,
+  "warnings": [
+    "GDELT [\"ICP-MS\" (tender OR procurement OR \"new laboratory\" OR hiring OR installed OR commissioned)]: 429 Client Error: Too Many Requests for url: https://api.gdeltproject.org/api/v2/doc/doc?query=%22ICP-MS%22+%28tender+OR+procurement+OR+%22new+laboratory%22+OR+hiring+OR+installed+OR+commissioned%29&mode=ArtList&format=json&maxrecords=40&sort=HybridRel"
+  ]
 }

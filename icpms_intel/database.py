@@ -46,7 +46,9 @@ def init_db(path: str | None = None) -> None:
                 sector TEXT DEFAULT 'General ICP-MS',
                 region TEXT DEFAULT 'Global',
                 organization TEXT DEFAULT '',
+                organization_id TEXT DEFAULT '',
                 instrument_vendor TEXT DEFAULT '',
+                instrument_model TEXT DEFAULT '',
                 signal_kind TEXT DEFAULT 'Research activity',
                 product_family TEXT DEFAULT 'General sample introduction',
                 credibility REAL DEFAULT 0.5,
@@ -75,8 +77,35 @@ def init_db(path: str | None = None) -> None:
                 active INTEGER DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS signal_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER NOT NULL,
+                verdict TEXT NOT NULL,
+                notes TEXT DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(signal_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS outcomes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                organization TEXT NOT NULL,
+                prediction_date TEXT NOT NULL,
+                predicted_probability REAL NOT NULL,
+                predicted_stage TEXT DEFAULT '',
+                outcome_date TEXT,
+                outcome_observed INTEGER,
+                outcome_type TEXT DEFAULT '',
+                evidence_url TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(signals)").fetchall()}
+        for name in ("organization_id", "instrument_model"):
+            if name not in columns:
+                conn.execute(f"ALTER TABLE signals ADD COLUMN {name} TEXT DEFAULT ''")
 
 
 def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, int]:
@@ -84,11 +113,11 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
     sql = """
         INSERT OR IGNORE INTO signals (
             title, summary, url, source_name, source_type, published_date,
-            sector, region, organization, instrument_vendor, signal_kind,
+            sector, region, organization, organization_id, instrument_vendor, instrument_model, signal_kind,
             product_family, credibility, relevance, buying_intent, raw_json
         ) VALUES (
             :title, :summary, :url, :source_name, :source_type, :published_date,
-            :sector, :region, :organization, :instrument_vendor, :signal_kind,
+            :sector, :region, :organization, :organization_id, :instrument_vendor, :instrument_model, :signal_kind,
             :product_family, :credibility, :relevance, :buying_intent, :raw_json
         )
     """
@@ -104,7 +133,9 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
                 "sector": row.get("sector", "General ICP-MS"),
                 "region": row.get("region", "Global"),
                 "organization": row.get("organization", ""),
+                "organization_id": row.get("organization_id", ""),
                 "instrument_vendor": row.get("instrument_vendor", ""),
+                "instrument_model": row.get("instrument_model", ""),
                 "signal_kind": row.get("signal_kind", "Research activity"),
                 "product_family": row.get("product_family", "General sample introduction"),
                 "credibility": float(row.get("credibility", 0.5)),
@@ -166,3 +197,37 @@ def watch_queries(path: str | None = None) -> list[str]:
         ).fetchall()
     return [r["query"] for r in rows]
 
+
+def save_feedback(signal_id: int, verdict: str, notes: str = "", path: str | None = None) -> None:
+    with connection(path) as conn:
+        conn.execute(
+            """INSERT INTO signal_feedback(signal_id, verdict, notes) VALUES(?, ?, ?)
+               ON CONFLICT(signal_id) DO UPDATE SET verdict=excluded.verdict,
+               notes=excluded.notes, created_at=CURRENT_TIMESTAMP""",
+            (int(signal_id), verdict, notes),
+        )
+
+
+def feedback_df(path: str | None = None) -> pd.DataFrame:
+    with connection(path) as conn:
+        return pd.read_sql_query("SELECT * FROM signal_feedback ORDER BY created_at DESC", conn)
+
+
+def add_outcome(row: dict, path: str | None = None) -> None:
+    with connection(path) as conn:
+        conn.execute(
+            """INSERT INTO outcomes(
+                organization, prediction_date, predicted_probability, predicted_stage,
+                outcome_date, outcome_observed, outcome_type, evidence_url, notes
+            ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                row["organization"], row["prediction_date"], float(row["predicted_probability"]),
+                row.get("predicted_stage", ""), row.get("outcome_date"), row.get("outcome_observed"),
+                row.get("outcome_type", ""), row.get("evidence_url", ""), row.get("notes", ""),
+            ),
+        )
+
+
+def outcomes_df(path: str | None = None) -> pd.DataFrame:
+    with connection(path) as conn:
+        return pd.read_sql_query("SELECT * FROM outcomes ORDER BY prediction_date DESC", conn)

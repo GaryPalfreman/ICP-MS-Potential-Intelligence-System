@@ -6,6 +6,17 @@ from datetime import datetime, timezone
 import pandas as pd
 
 
+def _markdown_table(frame: pd.DataFrame) -> str:
+    if frame.empty:
+        return "No records available."
+    clean = frame.fillna("").astype(str)
+    headers = [str(column).replace("|", "\\|") for column in clean.columns]
+    rows = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"] * len(headers)) + " |"]
+    for values in clean.itertuples(index=False, name=None):
+        rows.append("| " + " | ".join(str(value).replace("|", "\\|").replace("\n", " ") for value in values) + " |")
+    return "\n".join(rows)
+
+
 def intelligence_report(
     signals: pd.DataFrame,
     organizations: pd.DataFrame,
@@ -29,9 +40,9 @@ def intelligence_report(
             f"The highest current sector opportunity is **{top['Sector']}**, "
             f"with an expected {int(top['Expected index'])} index against a 100 baseline."
         )
-    lines.extend(["", "## Sector outlook", "", sectors.to_markdown(index=False), "", "## Product-family outlook", "", products.to_markdown(index=False)])
+    lines.extend(["", "## Sector outlook", "", _markdown_table(sectors), "", "## Product-family outlook", "", _markdown_table(products)])
     if not organizations.empty:
-        lines.extend(["", "## Potential organisations", "", organizations.head(30).to_markdown(index=False)])
+        lines.extend(["", "## Potential organisations", "", _markdown_table(organizations.head(30))])
     lines.extend(["", "## Evidence register", ""])
     for _, row in signals.head(50).iterrows():
         org = f" — {row['organization']}" if row.get("organization") else ""
@@ -80,4 +91,3 @@ def mirofish_seed_pack(signals: pd.DataFrame, sectors: pd.DataFrame, products: p
         "evidence": signals.head(200).to_dict(orient="records"),
     }
     return json.dumps(payload, indent=2, default=str)
-
