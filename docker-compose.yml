@@ -1,0 +1,11 @@
+services:
+  icpms-intelligence:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - ICPMS_DB_PATH=/app/data/intelligence.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
