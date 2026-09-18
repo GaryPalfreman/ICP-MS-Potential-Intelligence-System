@@ -11,7 +11,7 @@ import streamlit as st
 
 from icpms_intel.collectors import (
     collect_crossref, collect_europe_pmc, collect_gdelt_news, collect_nih_reporter,
-    collect_openalex, collect_rss, collect_sam_gov,
+    collect_openalex, collect_rss, collect_sam_gov, collect_ted_procurement,
 )
 from icpms_intel.database import (
     add_outcome,
@@ -115,7 +115,7 @@ if page == "Overview":
     c1.metric("Evidence signals", f"{len(signals):,}")
     c2.metric("Named organisations", f"{signals['organization'].fillna('').str.strip().ne('').sum():,}" if not signals.empty else "0")
     c3.metric("High-value signals", f"{(signals['opportunity_score'] >= 70).sum():,}" if not signals.empty else "0")
-    c4.metric("Watch queries", f"{len(watch_queries()):,}")
+    c4.metric("Open tenders", f"{signals['signal_kind'].eq('Procurement').sum():,}" if not signals.empty else "0")
     brief = daily_briefing(signals)
     st.caption(
         f"Last 7 days: {brief['new_signals']} new public signals · "
@@ -172,10 +172,10 @@ elif page == "Live Research":
     col1, col2, col3 = st.columns(3)
     days = col1.selectbox("Lookback", [365, 730, 1825, 3650], index=1, format_func=lambda x: f"{x // 365} year(s)")
     limit = col2.slider("Maximum per source", 10, 100, 40, 10)
-    available_sources = ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "GDELT News"]
+    available_sources = ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "TED Procurement", "GDELT News"]
     if os.getenv("SAM_GOV_API_KEY"):
         available_sources.append("SAM.gov")
-    sources = col3.multiselect("Sources", available_sources, default=["Crossref", "Europe PMC", "OpenAlex"])
+    sources = col3.multiselect("Sources", available_sources, default=["Crossref", "Europe PMC", "OpenAlex", "TED Procurement"])
     if st.button("Collect public research", type="primary", width="stretch"):
         collected, errors = [], []
         with st.spinner("Collecting and classifying public evidence…"):
@@ -186,6 +186,7 @@ elif page == "Live Research":
                         "Europe PMC": lambda: collect_europe_pmc(query, days, limit),
                         "OpenAlex": lambda: collect_openalex(query, days, limit),
                         "NIH RePORTER": lambda: collect_nih_reporter(query, days, limit),
+                        "TED Procurement": lambda: collect_ted_procurement(days, min(limit, 250)),
                         "GDELT News": lambda: collect_gdelt_news(query, limit),
                         "SAM.gov": lambda: collect_sam_gov(query, os.getenv("SAM_GOV_API_KEY", ""), min(days, 365), limit),
                     }
@@ -213,7 +214,7 @@ elif page == "Live Research":
             st.error(f"Feed could not be collected: {exc}")
     with st.expander("Active watch queries"):
         st.write(watch_queries())
-    st.caption("SAM.gov tender collection becomes available when a free SAM_GOV_API_KEY is added to Streamlit secrets. AusTender, EU TED and other public portals can be monitored through their approved RSS/Atom feeds above.")
+    st.caption("TED procurement works without an account or API key. SAM.gov remains optional. AusTender's official RSS endpoint currently blocks this automated environment, so the app does not claim unattended Australian coverage.")
 
 elif page == "Signals":
     hero("Search, review and add auditable market evidence.")
@@ -422,7 +423,7 @@ elif page == "Settings":
         "database": "SQLite runtime store restored from repository-backed public snapshot",
         "scheduled_update": "Daily at 19:00 UTC (05:00 AEST / 06:00 AEDT)",
         "last_update": update_status or "Waiting for first scheduled run",
-        "live_collectors": ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "GDELT News", "RSS/Atom", "SAM.gov with free API key"],
+        "live_collectors": ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "TED Procurement (no key)", "GDELT News", "RSS/Atom", "SAM.gov with free API key"],
         "paid_API_required": False,
         "evidence_signals": len(signals_df()),
         "reviewed_signals": len(feedback_df()),

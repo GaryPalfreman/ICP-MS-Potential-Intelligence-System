@@ -9,6 +9,7 @@ It contains **no private company data or company branding**.
 - Evidence-backed dashboard with source URLs
 - Live collection from Crossref and Europe PMC
 - Live collection from OpenAlex and NIH RePORTER
+- Direct ICP-relevant procurement notices from the anonymous EU TED API
 - Facility, hiring and installation announcements through GDELT public news
 - Optional SAM.gov tender collection with a free API key
 - RSS/Atom monitoring for approved public sources
@@ -74,9 +75,12 @@ Add the same key as a GitHub Actions repository secret to include SAM.gov result
 the unattended daily snapshot. An optional `OPENALEX_MAILTO` secret identifies the
 project to OpenAlex and improves free API reliability.
 
-Other official procurement portals such as AusTender and EU TED can be monitored through approved
-RSS/Atom endpoints on the **Live Research** page. The app does not bypass access controls or scrape
-portals that do not provide an approved public feed.
+EU TED procurement monitoring is built in and requires no account or API key. It searches the official
+mass-spectrometer procurement category, requires a future response deadline, and conservatively retains notices
+with ICP, plasma or elemental-analysis evidence. Closed notices are removed by the next daily refresh. AusTender
+publishes an official RSS URL, but it currently responds with HTTP 403 to this automated
+environment and omits useful fields such as closing dates. The app therefore does not scrape AusTender pages or
+claim unattended Australian tender coverage.
 
 ## Recommended workflow
 

@@ -20,6 +20,11 @@ from .taxonomy import (
 
 TIMEOUT = int(os.getenv("ICPMS_REQUEST_TIMEOUT", "20"))
 HEADERS = {"User-Agent": "ICPMS-Potential-Intelligence-System/1.0 (public research)"}
+TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
+ICP_MASS_SPEC_TERMS = (
+    "icp-ms", "icp ms", "icp–ms", "inductively coupled plasma",
+    "plasma mass spectrom", "elemental mass spectrom", "elemental analys",
+)
 
 
 def _get(url: str, **kwargs):
@@ -29,6 +34,27 @@ def _get(url: str, **kwargs):
     for attempt in range(attempts):
         try:
             response = requests.get(url, headers=HEADERS, timeout=timeout, **kwargs)
+        except requests.RequestException:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(min(2 ** attempt, 15))
+            continue
+        if response.status_code not in {429, 500, 502, 503, 504} or attempt == attempts - 1:
+            response.raise_for_status()
+            return response
+        retry_after = response.headers.get("Retry-After", "")
+        delay = float(retry_after) if retry_after.replace(".", "", 1).isdigit() else 2 ** attempt
+        time.sleep(min(delay, 15))
+    raise RuntimeError("Public source request failed after retries")
+
+
+def _post(url: str, **kwargs):
+    """POST to a public endpoint with the same bounded retry policy as GET."""
+    timeout = kwargs.pop("timeout", TIMEOUT)
+    attempts = int(kwargs.pop("_attempts", 3))
+    for attempt in range(attempts):
+        try:
+            response = requests.post(url, headers=HEADERS, timeout=timeout, **kwargs)
         except requests.RequestException:
             if attempt == attempts - 1:
                 raise
@@ -53,10 +79,24 @@ def _clean(value: str | None) -> str:
 def _date(value) -> str | None:
     if not value:
         return None
+    # TED sometimes returns a date followed directly by an offset, without a
+    # time component (for example 2026-09-18+02:00).
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})", str(value))
+    if match:
+        return match.group(1)
     try:
         return date_parser.parse(str(value)).date().isoformat()
     except (ValueError, TypeError, OverflowError):
         return None
+
+
+def _localized_text(value) -> str:
+    """Return English TED text where available, with safe fallbacks."""
+    if isinstance(value, dict):
+        value = value.get("eng") or next((item for item in value.values() if item), "")
+    if isinstance(value, list):
+        value = " | ".join(_localized_text(item) for item in value if item)
+    return _clean(value)
 
 
 def _vendor(text: str) -> str:
@@ -297,6 +337,80 @@ def collect_sam_gov(query: str, api_key: str, days: int = 90, limit: int = 100) 
             "product_family": classify_product(text),
             "credibility": SOURCE_CREDIBILITY["procurement"], "relevance": 0.94,
             "buying_intent": 0.98, "raw_json": {"notice_id": notice_id},
+        })
+    return rows
+
+
+def collect_ted_procurement(days: int = 730, limit: int = 250) -> list[dict]:
+    """Collect open ICP-relevant EU procurement notices from TED without authentication.
+
+    TED's exact mass-spectrometer CPV category is queried first; a conservative
+    text filter then excludes unrelated LC-MS, GC-MS and clinical-MS notices.
+    Requiring a future response deadline keeps award notices and closed tenders
+    from being presented as active sales opportunities.
+    """
+    del days  # Kept in the public signature for backwards compatibility.
+    today = date.today().strftime("%Y%m%d")
+    payload = {
+        "query": (
+            f"classification-cpv=38433100 AND deadline-receipt-tender-date-lot>={today} "
+            "SORT BY publication-date DESC"
+        ),
+        "fields": [
+            "publication-number", "notice-title", "title-lot", "title-proc",
+            "description-lot", "publication-date", "deadline-receipt-tender-date-lot",
+            "organisation-name-buyer", "organisation-country-buyer",
+            "classification-cpv", "notice-type",
+        ],
+        "page": 1,
+        "limit": min(max(int(limit), 10), 250),
+        "scope": "ACTIVE",
+        "paginationMode": "PAGE_NUMBER",
+        "onlyLatestVersions": True,
+    }
+    response = _post(TED_SEARCH_URL, json=payload, timeout=max(TIMEOUT, 45))
+    notices = response.json().get("notices", [])
+    if not isinstance(notices, list):
+        raise RuntimeError("TED response is missing notices")
+
+    rows = []
+    seen_opportunities: set[tuple[str, str]] = set()
+    for item in notices:
+        title = _localized_text(item.get("notice-title") or item.get("title-lot") or item.get("title-proc"))
+        detail = _localized_text(item.get("description-lot"))
+        text = f"{title} {detail}".strip()
+        if not any(term in text.lower() for term in ICP_MASS_SPEC_TERMS):
+            continue
+
+        notice_number = _clean(item.get("publication-number"))
+        buyer = _localized_text(item.get("organisation-name-buyer"))
+        opportunity_key = (buyer.casefold(), title.casefold())
+        if opportunity_key in seen_opportunities:
+            continue
+        seen_opportunities.add(opportunity_key)
+        country = _localized_text(item.get("organisation-country-buyer")) or "European Union"
+        deadlines = _localized_text(item.get("deadline-receipt-tender-date-lot"))
+        cpv = _localized_text(item.get("classification-cpv"))
+        notice_type = _clean(item.get("notice-type"))
+        summary_parts = [detail, f"Buyer: {buyer}" if buyer else "", f"Deadline: {deadlines}" if deadlines else "", f"CPV: {cpv}" if cpv else "", f"Notice type: {notice_type}" if notice_type else ""]
+        summary = " | ".join(part for part in summary_parts if part)
+        rows.append({
+            "title": title or f"TED ICP-MS procurement notice {notice_number}",
+            "summary": summary[:2000],
+            "url": f"https://ted.europa.eu/en/notice/-/detail/{notice_number}" if notice_number else "https://ted.europa.eu/",
+            "source_name": "TED (EU procurement)",
+            "source_type": "procurement",
+            "published_date": _date(item.get("publication-date")),
+            "sector": classify_sector(text),
+            "region": country,
+            "organization": buyer,
+            "instrument_vendor": _vendor(text),
+            "signal_kind": "Procurement",
+            "product_family": classify_product(text),
+            "credibility": SOURCE_CREDIBILITY["procurement"],
+            "relevance": 0.98,
+            "buying_intent": 0.98,
+            "raw_json": {"publication_number": notice_number, "deadline": deadlines, "cpv": cpv},
         })
     return rows
 

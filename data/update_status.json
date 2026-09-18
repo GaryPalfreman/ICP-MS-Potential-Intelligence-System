@@ -1,5 +1,5 @@
 {
-  "last_attempt_utc": "2026-09-18T11:57:44+00:00",
+  "last_attempt_utc": "2026-09-18T12:49:02+00:00",
   "successful": true,
   "complete": false,
   "sources": [
@@ -8,13 +8,16 @@
     "OpenAlex",
     "NIH RePORTER",
     "GDELT",
-    "Public news RSS"
+    "Public news RSS",
+    "TED procurement"
   ],
-  "queries_run": 29,
-  "records_received": 962,
-  "new_records": 14,
+  "queries_run": 30,
+  "records_received": 963,
+  "new_records": 15,
   "duplicates_skipped": 948,
-  "snapshot_records": 841,
+  "snapshot_records": 871,
+  "ted_procurement_records": 1,
+  "ted_buyers": 1,
   "warnings": [
     "GDELT [\"ICP-MS\" (tender OR procurement OR installed OR commissioned)]: 429 Client Error: Too Many Requests for url: https://api.gdeltproject.org/api/v2/doc/doc?query=%22ICP-MS%22+%28tender+OR+procurement+OR+installed+OR+commissioned%29&mode=ArtList&format=json&maxrecords=40&sort=DateDesc&timespan=3months"
   ]

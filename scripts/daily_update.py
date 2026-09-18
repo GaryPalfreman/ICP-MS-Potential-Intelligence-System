@@ -13,7 +13,7 @@ import pandas as pd
 
 from icpms_intel.collectors import (
     collect_crossref, collect_europe_pmc, collect_gdelt_news, collect_nih_reporter,
-    collect_openalex, collect_rss, collect_sam_gov,
+    collect_openalex, collect_rss, collect_sam_gov, collect_ted_procurement,
 )
 from icpms_intel.database import init_db, insert_signals, signals_df
 from icpms_intel.seed import DEFAULT_QUERIES, GRANT_QUERIES, starter_signals
@@ -85,6 +85,11 @@ def main() -> int:
             except Exception as exc:
                 errors.append(f"Public news RSS [{query}]: {exc}")
 
+        try:
+            collected.extend(collect_ted_procurement(days=730, limit=250))
+        except Exception as exc:
+            errors.append(f"TED procurement: {exc}")
+
         sam_key = os.getenv("SAM_GOV_API_KEY", "").strip()
         if sam_key:
             for query in ('"ICP-MS"', '"mass spectrometer" elemental'):
@@ -95,6 +100,15 @@ def main() -> int:
 
         inserted, skipped = insert_signals(collected, db)
         snapshot = signals_df(db).drop(columns=["id", "collected_at", "raw_json"], errors="ignore")
+        # TED is an active-opportunity feed. Remove notices that are no longer
+        # returned by today's future-deadline search instead of retaining them
+        # forever in the historical snapshot.
+        current_ted_urls = {
+            row.get("url", "") for row in collected
+            if row.get("source_name") == "TED (EU procurement)"
+        }
+        ted_mask = snapshot["source_name"].eq("TED (EU procurement)")
+        snapshot = snapshot[~ted_mask | snapshot["url"].isin(current_ted_urls)].copy()
         # Re-evaluate text-derived fields so taxonomy improvements also upgrade
         # previously stored news records rather than only brand-new URLs.
         text = (snapshot["title"].fillna("") + " " + snapshot["summary"].fillna(""))
@@ -110,6 +124,12 @@ def main() -> int:
         snapshot.loc[news_mask, "buying_intent"] = snapshot.loc[news_mask, "signal_kind"].map(intent).fillna(.32)
         snapshot["summary"] = snapshot["summary"].fillna("").astype(str).str.slice(0, 240)
         snapshot = snapshot.sort_values(["published_date", "title"], ascending=[False, True], na_position="last")
+        # TED can publish several amendments for the same buyer and procedure.
+        # Count the newest version once so amendments do not mimic corroboration.
+        ted_mask = snapshot["source_name"].eq("TED (EU procurement)")
+        ted = snapshot[ted_mask].drop_duplicates(subset=["organization", "title"], keep="first")
+        snapshot = pd.concat([snapshot[~ted_mask], ted], ignore_index=True)
+        snapshot = snapshot.sort_values(["published_date", "title"], ascending=[False, True], na_position="last")
         snapshot.to_csv(SNAPSHOT_PATH, index=False)
         # Fail before commit if a malformed or empty snapshot would replace good evidence.
         check = pd.read_csv(SNAPSHOT_PATH)
@@ -121,16 +141,18 @@ def main() -> int:
         "last_attempt_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "successful": bool(collected) and len(snapshot) >= 8,
         "complete": len(errors) == 0,
-        "sources": ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "GDELT", "Public news RSS"]
+        "sources": ["Crossref", "Europe PMC", "OpenAlex", "NIH RePORTER", "GDELT", "Public news RSS", "TED procurement"]
         + (["SAM.gov"] if sam_key else []),
         "queries_run": (
             len(DEFAULT_QUERIES) * 3 + len(GRANT_QUERIES) + len(news_queries)
-            + len(rss_queries) + (2 if sam_key else 0)
+            + len(rss_queries) + 1 + (2 if sam_key else 0)
         ),
         "records_received": len(collected),
         "new_records": inserted,
         "duplicates_skipped": skipped,
         "snapshot_records": len(snapshot),
+        "ted_procurement_records": int(snapshot["source_name"].eq("TED (EU procurement)").sum()),
+        "ted_buyers": int(snapshot.loc[snapshot["source_name"].eq("TED (EU procurement)"), "organization"].nunique()),
         "warnings": errors,
     }
     STATUS_PATH.write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
