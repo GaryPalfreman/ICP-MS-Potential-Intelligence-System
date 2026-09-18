@@ -1,5 +1,5 @@
 {
-  "last_attempt_utc": "2026-09-18T13:32:23+00:00",
+  "last_attempt_utc": "2026-09-18T14:02:34+00:00",
   "successful": true,
   "complete": false,
   "sources": [
@@ -12,22 +12,22 @@
     "TED procurement"
   ],
   "queries_run": 30,
-  "records_received": 2223,
-  "new_records": 1089,
-  "duplicates_skipped": 1134,
+  "records_received": 2221,
+  "new_records": 1,
+  "duplicates_skipped": 2220,
   "duplicate_records_removed": 0,
-  "snapshot_records": 1852,
+  "snapshot_records": 1853,
   "ted_procurement_records": 1,
   "ted_buyers": 1,
   "warnings": [
-    "GDELT [\"ICP-MS\" (tender OR procurement OR installed OR commissioned)]: ReadTimeout"
+    "GDELT [\"ICP-MS\" (tender OR procurement OR installed OR commissioned)]: HTTPError"
   ],
   "collection_results": [
     {
       "key": "Crossref|\"ICP-MS\" battery",
       "source": "Crossref",
       "query": "\"ICP-MS\" battery",
-      "last_success_utc": "2026-09-18T13:26:59+00:00",
+      "last_success_utc": "2026-09-18T14:01:07+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -36,28 +36,28 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 14.06
+      "duration_seconds": 2.45
     },
     {
       "key": "Crossref|\"ICP-MS\" critical minerals",
       "source": "Crossref",
       "query": "\"ICP-MS\" critical minerals",
-      "last_success_utc": "2026-09-18T13:30:10+00:00",
+      "last_success_utc": "2026-09-18T14:01:59+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
-      "total_reported": 193267,
+      "total_reported": 193268,
       "limit": 100,
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 16.91
+      "duration_seconds": 2.7
     },
     {
       "key": "Crossref|\"ICP-MS\" drinking water",
       "source": "Crossref",
       "query": "\"ICP-MS\" drinking water",
-      "last_success_utc": "2026-09-18T13:28:28+00:00",
+      "last_success_utc": "2026-09-18T14:01:24+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -66,13 +66,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 15.23
+      "duration_seconds": 2.11
     },
     {
       "key": "Crossref|\"ICP-MS\" elemental impurities",
       "source": "Crossref",
       "query": "\"ICP-MS\" elemental impurities",
-      "last_success_utc": "2026-09-18T13:27:57+00:00",
+      "last_success_utc": "2026-09-18T14:01:18+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -81,13 +81,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 14.44
+      "duration_seconds": 1.66
     },
     {
       "key": "Crossref|\"ICP-MS\" mass cytometry",
       "source": "Crossref",
       "query": "\"ICP-MS\" mass cytometry",
-      "last_success_utc": "2026-09-18T13:29:02+00:00",
+      "last_success_utc": "2026-09-18T14:01:30+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -96,13 +96,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 17.27
+      "duration_seconds": 2.43
     },
     {
       "key": "Crossref|\"ICP-MS\" semiconductor",
       "source": "Crossref",
       "query": "\"ICP-MS\" semiconductor",
-      "last_success_utc": "2026-09-18T13:27:28+00:00",
+      "last_success_utc": "2026-09-18T14:01:13+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -111,13 +111,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 14.01
+      "duration_seconds": 0.96
     },
     {
       "key": "Crossref|\"laser ablation ICP-MS\"",
       "source": "Crossref",
       "query": "\"laser ablation ICP-MS\"",
-      "last_success_utc": "2026-09-18T13:29:36+00:00",
+      "last_success_utc": "2026-09-18T14:01:52+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -126,13 +126,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 16.45
+      "duration_seconds": 2.5
     },
     {
       "key": "Europe PMC|\"ICP-MS\" battery",
       "source": "Europe PMC",
       "query": "\"ICP-MS\" battery",
-      "last_success_utc": "2026-09-18T13:26:10+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -141,13 +141,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 18.71
+      "duration_seconds": 3.79
     },
     {
       "key": "Europe PMC|\"ICP-MS\" critical minerals",
       "source": "Europe PMC",
       "query": "\"ICP-MS\" critical minerals",
-      "last_success_utc": "2026-09-18T13:26:26+00:00",
+      "last_success_utc": "2026-09-18T14:01:02+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -156,13 +156,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 15.85
+      "duration_seconds": 1.93
     },
     {
       "key": "Europe PMC|\"ICP-MS\" drinking water",
       "source": "Europe PMC",
       "query": "\"ICP-MS\" drinking water",
-      "last_success_utc": "2026-09-18T13:26:10+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -171,13 +171,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 19.08
+      "duration_seconds": 3.98
     },
     {
       "key": "Europe PMC|\"ICP-MS\" elemental impurities",
       "source": "Europe PMC",
       "query": "\"ICP-MS\" elemental impurities",
-      "last_success_utc": "2026-09-18T13:26:10+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -186,13 +186,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 19.05
+      "duration_seconds": 3.89
     },
     {
       "key": "Europe PMC|\"ICP-MS\" mass cytometry",
       "source": "Europe PMC",
       "query": "\"ICP-MS\" mass cytometry",
-      "last_success_utc": "2026-09-18T13:26:10+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -201,13 +201,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 19.31
+      "duration_seconds": 4.07
     },
     {
       "key": "Europe PMC|\"ICP-MS\" semiconductor",
       "source": "Europe PMC",
       "query": "\"ICP-MS\" semiconductor",
-      "last_success_utc": "2026-09-18T13:26:11+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -216,13 +216,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 20.05
+      "duration_seconds": 3.85
     },
     {
       "key": "Europe PMC|\"laser ablation ICP-MS\"",
       "source": "Europe PMC",
       "query": "\"laser ablation ICP-MS\"",
-      "last_success_utc": "2026-09-18T13:26:25+00:00",
+      "last_success_utc": "2026-09-18T14:01:02+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -231,7 +231,7 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 15.42
+      "duration_seconds": 1.87
     },
     {
       "key": "GDELT|\"ICP-MS\" (tender OR procurement OR installed OR commissioned)",
@@ -239,14 +239,14 @@
       "query": "\"ICP-MS\" (tender OR procurement OR installed OR commissioned)",
       "last_success_utc": null,
       "status": "failed",
-      "error_type": "ReadTimeout",
-      "duration_seconds": 69.06
+      "error_type": "HTTPError",
+      "duration_seconds": 29.16
     },
     {
       "key": "NIH RePORTER|elemental impurities analysis",
       "source": "NIH RePORTER",
       "query": "elemental impurities analysis",
-      "last_success_utc": "2026-09-18T13:26:31+00:00",
+      "last_success_utc": "2026-09-18T14:01:01+00:00",
       "status": "empty",
       "fetched": 0,
       "matched": 0,
@@ -255,13 +255,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": false,
       "records": 0,
-      "duration_seconds": 10.52
+      "duration_seconds": 0.27
     },
     {
       "key": "NIH RePORTER|inductively coupled plasma mass spectrometry",
       "source": "NIH RePORTER",
       "query": "inductively coupled plasma mass spectrometry",
-      "last_success_utc": "2026-09-18T13:26:20+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 25,
       "matched": 25,
@@ -270,13 +270,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 25,
-      "duration_seconds": 10.45
+      "duration_seconds": 0.54
     },
     {
       "key": "NIH RePORTER|mass cytometry",
       "source": "NIH RePORTER",
       "query": "mass cytometry",
-      "last_success_utc": "2026-09-18T13:26:20+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 25,
       "matched": 25,
@@ -285,13 +285,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 25,
-      "duration_seconds": 9.9
+      "duration_seconds": 0.44
     },
     {
       "key": "NIH RePORTER|trace element analysis",
       "source": "NIH RePORTER",
       "query": "trace element analysis",
-      "last_success_utc": "2026-09-18T13:26:20+00:00",
+      "last_success_utc": "2026-09-18T14:01:00+00:00",
       "status": "success",
       "fetched": 25,
       "matched": 25,
@@ -300,13 +300,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 25,
-      "duration_seconds": 9.27
+      "duration_seconds": 0.45
     },
     {
       "key": "OpenAlex|\"ICP-MS\" battery",
       "source": "OpenAlex",
       "query": "\"ICP-MS\" battery",
-      "last_success_utc": "2026-09-18T13:26:44+00:00",
+      "last_success_utc": "2026-09-18T14:01:04+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -315,13 +315,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 13.37
+      "duration_seconds": 2.21
     },
     {
       "key": "OpenAlex|\"ICP-MS\" critical minerals",
       "source": "OpenAlex",
       "query": "\"ICP-MS\" critical minerals",
-      "last_success_utc": "2026-09-18T13:29:52+00:00",
+      "last_success_utc": "2026-09-18T14:01:55+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -330,13 +330,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 15.26
+      "duration_seconds": 2.04
     },
     {
       "key": "OpenAlex|\"ICP-MS\" drinking water",
       "source": "OpenAlex",
       "query": "\"ICP-MS\" drinking water",
-      "last_success_utc": "2026-09-18T13:28:12+00:00",
+      "last_success_utc": "2026-09-18T14:01:21+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -345,13 +345,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 13.23
+      "duration_seconds": 1.77
     },
     {
       "key": "OpenAlex|\"ICP-MS\" elemental impurities",
       "source": "OpenAlex",
       "query": "\"ICP-MS\" elemental impurities",
-      "last_success_utc": "2026-09-18T13:27:42+00:00",
+      "last_success_utc": "2026-09-18T14:01:15+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -360,13 +360,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 13.1
+      "duration_seconds": 1.69
     },
     {
       "key": "OpenAlex|\"ICP-MS\" mass cytometry",
       "source": "OpenAlex",
       "query": "\"ICP-MS\" mass cytometry",
-      "last_success_utc": "2026-09-18T13:28:44+00:00",
+      "last_success_utc": "2026-09-18T14:01:27+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -375,13 +375,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 15.2
+      "duration_seconds": 1.82
     },
     {
       "key": "OpenAlex|\"ICP-MS\" semiconductor",
       "source": "OpenAlex",
       "query": "\"ICP-MS\" semiconductor",
-      "last_success_utc": "2026-09-18T13:27:13+00:00",
+      "last_success_utc": "2026-09-18T14:01:11+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -390,13 +390,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 12.64
+      "duration_seconds": 2.25
     },
     {
       "key": "OpenAlex|\"laser ablation ICP-MS\"",
       "source": "OpenAlex",
       "query": "\"laser ablation ICP-MS\"",
-      "last_success_utc": "2026-09-18T13:29:18+00:00",
+      "last_success_utc": "2026-09-18T14:01:49+00:00",
       "status": "success",
       "fetched": 100,
       "matched": 100,
@@ -405,43 +405,43 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": true,
       "records": 100,
-      "duration_seconds": 14.93
+      "duration_seconds": 17.88
     },
     {
       "key": "Public news RSS|\"ICP-MS\" \"new laboratory\" OR installed OR commissioned",
       "source": "Public news RSS",
       "query": "\"ICP-MS\" \"new laboratory\" OR installed OR commissioned",
-      "last_success_utc": "2026-09-18T13:31:50+00:00",
+      "last_success_utc": "2026-09-18T14:02:30+00:00",
       "status": "success",
-      "fetched": 37,
-      "matched": 17,
+      "fetched": 36,
+      "matched": 16,
       "total_reported": null,
       "limit": 100,
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": false,
-      "records": 17,
-      "duration_seconds": 15.36
+      "records": 16,
+      "duration_seconds": 0.53
     },
     {
       "key": "Public news RSS|\"ICP-MS\" hiring OR vacancy OR analyst",
       "source": "Public news RSS",
       "query": "\"ICP-MS\" hiring OR vacancy OR analyst",
-      "last_success_utc": "2026-09-18T13:32:04+00:00",
+      "last_success_utc": "2026-09-18T14:02:31+00:00",
       "status": "success",
-      "fetched": 41,
-      "matched": 24,
+      "fetched": 40,
+      "matched": 23,
       "total_reported": null,
       "limit": 100,
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": false,
-      "records": 24,
-      "duration_seconds": 14.44
+      "records": 23,
+      "duration_seconds": 0.49
     },
     {
       "key": "Public news RSS|\"ICP-MS\" tender OR procurement",
       "source": "Public news RSS",
       "query": "\"ICP-MS\" tender OR procurement",
-      "last_success_utc": "2026-09-18T13:31:34+00:00",
+      "last_success_utc": "2026-09-18T14:02:30+00:00",
       "status": "success",
       "fetched": 14,
       "matched": 6,
@@ -450,13 +450,13 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": false,
       "records": 6,
-      "duration_seconds": 14.56
+      "duration_seconds": 0.49
     },
     {
       "key": "TED procurement|CPV 38433100 active",
       "source": "TED procurement",
       "query": "CPV 38433100 active",
-      "last_success_utc": "2026-09-18T13:32:22+00:00",
+      "last_success_utc": "2026-09-18T14:02:32+00:00",
       "status": "success",
       "fetched": 30,
       "matched": 1,
@@ -465,12 +465,9 @@
       "coverage": "bounded search; completeness not established",
       "possibly_truncated": false,
       "records": 1,
-      "duration_seconds": 17.38
+      "duration_seconds": 1.58
     }
   ],
-  "last_success_utc": "2026-09-18T13:32:23+00:00",
-  "coverage_note": "Bounded searches; missing results do not prove absence of activity.",
-  "release_version": "2.2.0",
-  "historical_identified_records_restored": 30,
-  "illustrative_notes_excluded": 8
+  "last_success_utc": "2026-09-18T14:02:34+00:00",
+  "coverage_note": "Bounded searches; missing results do not prove absence of activity."
 }
