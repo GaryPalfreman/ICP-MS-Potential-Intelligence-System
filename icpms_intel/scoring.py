@@ -63,11 +63,12 @@ def organization_scores(signals: pd.DataFrame, manual: pd.DataFrame | None = Non
         base = pd.DataFrame(columns=[
             "organization", "sector", "region", "signals", "latest_signal",
             "opportunity_score", "evidence_strength", "top_product",
-            "sales_stage", "confidence", "independent_sources", "signal_types",
+            "sales_stage", "confidence", "source_labels", "signal_types",
         ])
     else:
         grouped = []
         for org, group in scored.groupby("organization"):
+            group = group.sort_values("opportunity_score", ascending=False).drop_duplicates("corroboration_group")
             scores = sorted(group["opportunity_score"].tolist(), reverse=True)
             combined = 100 * (1 - math.prod(1 - min(s / 100, 0.95) * 0.55 for s in scores[:6]))
             stage = max(group["sales_stage"], key=lambda value: STAGE_ORDER.get(value, 1))
@@ -83,7 +84,7 @@ def organization_scores(signals: pd.DataFrame, manual: pd.DataFrame | None = Non
                 "top_product": group["recommended_product"].mode().iat[0],
                 "sales_stage": stage,
                 "confidence": round(confidence, 1),
-                "independent_sources": int(group["source_name"].nunique()),
+                "source_labels": int(group["source_name"].nunique()),
                 "signal_types": ", ".join(group["signal_kind"].value_counts().head(3).index),
             })
         base = pd.DataFrame(grouped)
@@ -100,7 +101,7 @@ def organization_scores(signals: pd.DataFrame, manual: pd.DataFrame | None = Non
             "top_product": "Unassigned",
             "sales_stage": "Research activity",
             "confidence": 20.0,
-            "independent_sources": 0,
+            "source_labels": 0,
             "signal_types": "Watchlist",
         })
         base = pd.concat([base, extra], ignore_index=True)

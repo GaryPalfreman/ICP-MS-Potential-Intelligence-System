@@ -141,7 +141,7 @@ def init_db(path: str | None = None) -> None:
             """
         )
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(signals)").fetchall()}
-        for name in ("organization_id", "instrument_model", "doi", "response_deadline", "notice_status"):
+        for name in ("organization_id", "instrument_model", "doi", "response_deadline", "notice_status", "first_seen_at", "last_seen_at", "collector_name"):
             if name not in columns:
                 conn.execute(f"ALTER TABLE signals ADD COLUMN {name} TEXT DEFAULT ''")
 
@@ -153,12 +153,12 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
             title, summary, url, source_name, source_type, published_date,
             sector, region, organization, organization_id, instrument_vendor, instrument_model, signal_kind,
             product_family, credibility, relevance, buying_intent, raw_json,
-            doi, response_deadline, notice_status
+            doi, response_deadline, notice_status, first_seen_at, last_seen_at, collector_name
         ) VALUES (
             :title, :summary, :url, :source_name, :source_type, :published_date,
             :sector, :region, :organization, :organization_id, :instrument_vendor, :instrument_model, :signal_kind,
             :product_family, :credibility, :relevance, :buying_intent, :raw_json,
-            :doi, :response_deadline, :notice_status
+            :doi, :response_deadline, :notice_status, :first_seen_at, :last_seen_at, :collector_name
         )
     """
     with connection(path) as conn:
@@ -194,15 +194,25 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
                 "doi": row.get("doi") or "",
                 "response_deadline": row.get("response_deadline") or "",
                 "notice_status": row.get("notice_status") or "",
+                "first_seen_at": row.get("first_seen_at") or "",
+                "last_seen_at": row.get("last_seen_at") or "",
+                "collector_name": row.get("collector_name") or "",
             }
             if not isinstance(clean["raw_json"], str):
                 clean["raw_json"] = json.dumps(clean["raw_json"], default=str)
             identity = evidence_identity(clean)
             if identity in seen:
                 # Refresh structured status fields without changing row IDs or reviews.
-                for field in ("doi", "response_deadline", "notice_status"):
+                for field in ("doi", "response_deadline", "notice_status", "last_seen_at", "collector_name"):
                     if clean[field]:
                         conn.execute(f"UPDATE signals SET {field}=? WHERE id=?", (clean[field], seen[identity]))
+                # Fill richer abstracts/identity fields without erasing existing detail.
+                old = conn.execute("SELECT * FROM signals WHERE id=?", (seen[identity],)).fetchone()
+                for field in ("first_seen_at", "organization", "organization_id"):
+                    if clean[field] and not old[field]:
+                        conn.execute(f"UPDATE signals SET {field}=? WHERE id=?", (clean[field], seen[identity]))
+                if len(clean["summary"]) > len(old["summary"] or ""):
+                    conn.execute("UPDATE signals SET summary=? WHERE id=?", (clean["summary"], seen[identity]))
                 skipped += 1
                 continue
             cursor = conn.execute(sql, clean)
@@ -216,9 +226,13 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
 
 def signals_df(path: str | None = None) -> pd.DataFrame:
     with connection(path) as conn:
-        return pd.read_sql_query(
+        frame = pd.read_sql_query(
             "SELECT * FROM signals WHERE id NOT IN (SELECT signal_id FROM snapshot_members WHERE active=0) ORDER BY COALESCE(published_date, collected_at) DESC", conn
         )
+    # Legacy illustrative notes are retained in storage but are not evidence.
+    from .seed import starter_signals
+    seeds = {(r['title'], r['url']) for r in starter_signals()}
+    return frame[~frame.apply(lambda r: (r['title'], r['url']) in seeds, axis=1)].copy()
 
 
 def add_organization(row: dict, path: str | None = None) -> None:
@@ -292,3 +306,48 @@ def add_outcome(row: dict, path: str | None = None) -> None:
 def outcomes_df(path: str | None = None) -> pd.DataFrame:
     with connection(path) as conn:
         return pd.read_sql_query("SELECT * FROM outcomes ORDER BY prediction_date DESC", conn)
+
+
+def save_benchmark_label(row, path=None):
+    from .verification import evidence_key, source_fingerprint
+    from datetime import datetime, timezone
+    payload = dict(row)
+    payload['evidence_key'] = evidence_key(row)
+    payload['fingerprint'] = source_fingerprint(row)
+    payload['reviewed_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    if not str(payload.get('reviewer','')).strip():
+        raise ValueError('A reviewer name is required')
+    with connection(path) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS benchmark_labels (evidence_key TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        conn.execute("INSERT INTO benchmark_labels VALUES (?,?) ON CONFLICT(evidence_key) DO UPDATE SET payload=excluded.payload", (payload['evidence_key'], json.dumps(payload)))
+
+
+def benchmark_labels_df(path=None):
+    with connection(path) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS benchmark_labels (evidence_key TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        rows = conn.execute("SELECT payload FROM benchmark_labels").fetchall()
+    return pd.DataFrame([json.loads(row[0]) for row in rows])
+
+
+def save_primary_review(signal_id, url, passage, reviewer, path=None):
+    from urllib.parse import urlparse
+    if urlparse(url).scheme not in {'http','https'} or not urlparse(url).hostname:
+        raise ValueError('Enter a valid public source URL')
+    if not passage.strip() or not reviewer.strip():
+        raise ValueError('A source passage and reviewer are required')
+    with connection(path) as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS primary_reviews (
+            signal_id INTEGER PRIMARY KEY, original_url TEXT, passage TEXT, reviewer TEXT,
+            reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+        conn.execute('''INSERT INTO primary_reviews(signal_id,original_url,passage,reviewer) VALUES(?,?,?,?)
+            ON CONFLICT(signal_id) DO UPDATE SET original_url=excluded.original_url,
+            passage=excluded.passage,reviewer=excluded.reviewer,reviewed_at=CURRENT_TIMESTAMP''',
+            (int(signal_id),url,passage,reviewer))
+
+
+def primary_reviews_df(path=None):
+    with connection(path) as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS primary_reviews (
+            signal_id INTEGER PRIMARY KEY, original_url TEXT, passage TEXT, reviewer TEXT,
+            reviewed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+        return pd.read_sql_query('SELECT * FROM primary_reviews',conn)

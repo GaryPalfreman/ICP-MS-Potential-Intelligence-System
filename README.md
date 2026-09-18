@@ -22,7 +22,7 @@ It contains **no private company data or company branding**.
 - Evidence confidence, sales-stage and product-fit explanations
 - 90-day trend acceleration and a material-change daily briefing
 - Human signal review and score adjustments
-- Prediction outcome tracking with Brier-score calibration
+- Retrospective outcome diagnostics and forward-only 90-day research-priority tracking
 - Conservative/expected/accelerated Monte Carlo scenarios
 - Markdown, Excel, CSV and MiroFish-ready JSON exports
 - SQLite persistence
@@ -78,14 +78,14 @@ project to OpenAlex and improves free API reliability.
 
 EU TED procurement monitoring is built in and requires no account or API key. It searches the official
 mass-spectrometer procurement category, requires a future response deadline, and conservatively retains notices
-with ICP, plasma or elemental-analysis evidence. Closed notices are removed by the next daily refresh. AusTender
+with ICP, plasma or elemental-analysis evidence. Closed notices are retained as history and excluded from active counts. A missing notice is marked not returned, never presumed cancelled or awarded. AusTender
 publishes an official RSS URL, but it currently responds with HTTP 403 to this automated
 environment and omits useful fields such as closing dates. The app therefore does not scrape AusTender pages or
 claim unattended Australian tender coverage.
 
 ## Recommended workflow
 
-1. Review the starter signals.
+1. Review collected evidence; illustrative starter notes are excluded from live scores.
 2. Use **Live Research** to collect current papers for the saved queries.
 3. Add public tenders, grants, hiring notices and facility announcements.
 4. Verify source URLs in **Signals**.
@@ -100,8 +100,8 @@ claim unattended Australian tender coverage.
 Relevance and classification use source titles and summaries, never search terms.
 Missing explicit ICP evidence is labelled for verification and receives a lower
 relevance score; absence in an abstract is not proof of irrelevance. Existing
-summaries may be truncated, and older title-only merges cannot be reconstructed
-without recollecting their sources. DOI identity takes priority, followed by exact
+summaries may be truncated. Identified records recovered from historical snapshots are
+rechecked; recovery is not a claim of exhaustive source coverage. DOI identity takes priority, followed by exact
 source URL; identifier-free records use title, source and publication date.
 
 An open tender requires an explicit active status and a deadline after today.
@@ -125,8 +125,9 @@ The sales-stage funnel runs from research activity through funding, expansion, h
 installation and consumables demand. Direct tender and installation evidence outranks ordinary publication
 activity. Human review can mark evidence as relevant, strong, duplicated or incorrectly classified.
 
-The **Review & Backtesting** page records later public outcomes and calculates a Brier score. This allows
-the assumed weights to be assessed over time instead of presenting permanently untested precision.
+The **Review & Backtesting** page accepts retrospective user-entered probabilities and outcomes.
+Its Brier score is a diagnostic, not proof of predictive validity. The new **Evidence & Accuracy**
+page separates frozen forward-only research-priority scores from those retrospective entries.
 
 ## Scoring
 
@@ -174,3 +175,42 @@ pytest -q
 ## Disclaimer
 
 This application is a research and decision-support tool. It does not provide financial advice, guarantee purchases, establish customer intent, or replace human technical and commercial review.
+
+
+## 2.2.0 — Evidence verification and measurement
+
+The **Evidence & Accuracy** workspace adds:
+
+- Exact passages from stored title/abstract fields, structured-field provenance, and actual retrieval timestamps.
+  Legacy retrieval dates remain unknown. Text matches identify wording, not verified purchasing intent.
+- Original-announcement review with reviewer, public URL and supporting passage. These are human
+  attestations; the app does not automatically verify news against original webpages.
+- A deterministic stratified benchmark template and review form for relevance, organisation and tender status.
+  Only signed, version-matched labels are evaluated. No labels means no claimed accuracy. Changed evidence
+  invalidates old labels; tender judgements expire daily. Precision/recall measure explicit source-text relevance,
+  not market-wide recall. The sample is not guaranteed representative, and training on it makes it a development
+  benchmark rather than an independent holdout. Record reviewer disagreements before claiming validation.
+- Per-query counts, durations, failure/empty distinctions, cap warnings and last successful collection times.
+  Searches are bounded (100 records per scientific query), not exhaustive. Failed sources retain prior data.
+- Closed and missing TED notices retained, and append-only daily observations and 90-day priority snapshots.
+  Only later first-observed, later-published procurement/installation records qualify as public proxy outcomes.
+  No later observation is not proof of no purchase. No calibrated probability is generated.
+- Matching normalized news headlines count once for organisation scoring and trend counts. Raw records remain
+  auditable. Differently worded syndication may remain; source-label counts are not independent-source counts.
+- Europe PMC core abstracts and reconstructed OpenAlex abstracts; richer repeated records update summaries
+  while preserving first retrieval time and review IDs.
+- Illustrative starter notes excluded from production evidence and date-based trends.
+
+`data/benchmark_candidates.csv` contains unlabelled actual evidence, **not fabricated human-reviewed truth**.
+Use the in-app form or export/re-import reviewed CSVs. Benchmark and original-source reviews remain runtime-local;
+export them before restarts. The public repository stores only automated evidence/history, not personal reviews.
+
+Historical recovery is reproducible:
+
+```bash
+python -m scripts.recover_history /path/to/pre-deduplication-snapshot.csv
+python -m scripts.daily_update
+```
+
+Daily history begins with this release; no historical predictions are backfilled. The public CSV histories grow
+with daily use; archive them periodically when repository size becomes material. Scoring weights remain heuristic.

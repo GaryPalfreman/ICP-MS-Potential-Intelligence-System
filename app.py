@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+from pathlib import Path
 from datetime import date, datetime
 
 import pandas as pd
@@ -15,6 +16,10 @@ from icpms_intel.collectors import (
 )
 from icpms_intel.database import (
     add_outcome,
+    benchmark_labels_df,
+    save_benchmark_label,
+    primary_reviews_df,
+    save_primary_review,
     add_organization,
     add_watch_query,
     feedback_df,
@@ -25,6 +30,10 @@ from icpms_intel.database import (
     save_feedback,
     signals_df,
     watch_queries,
+)
+from icpms_intel.verification import (
+    support_passages, primary_source_status, benchmark_candidates, benchmark_metrics,
+    evidence_key, source_fingerprint, prospective_outcomes,
 )
 from icpms_intel.intelligence import calibration_metrics, daily_briefing, enrich_signals, trend_acceleration
 from icpms_intel.reporting import intelligence_report, mirofish_seed_pack
@@ -92,7 +101,7 @@ def filtered_signals() -> pd.DataFrame:
 
 pages = [
     "Overview", "Daily Briefing", "Live Research", "Signals", "Potential Organisations",
-    "Trends", "Review & Backtesting", "Scenario Lab", "Reports & Export", "Settings",
+    "Trends", "Evidence & Accuracy", "Review & Backtesting", "Scenario Lab", "Reports & Export", "Settings",
 ]
 page = st.sidebar.radio("Workspace", pages)
 st.sidebar.caption("Public evidence only · No confidential company data")
@@ -321,6 +330,126 @@ elif page == "Trends":
         st.dataframe(trends, width="stretch", hide_index=True)
     st.markdown('<p class="evidence">Acceleration uses smoothed recent-versus-prior 90-day counts and requires minimum evidence before labelling a sector. It is a leading indicator, not a revenue forecast.</p>', unsafe_allow_html=True)
 
+elif page == "Evidence & Accuracy":
+    hero("Inspect claim support, measure reviewed classifications and track collection coverage.")
+    support_tab, benchmark_tab, coverage_tab, history_tab = st.tabs([
+        "Evidence support", "Reviewed benchmark", "Source coverage", "Tender & prediction history"])
+    all_evidence = signals_df()
+    with support_tab:
+        if not signals.empty:
+            selection = st.selectbox("Inspect evidence", signals['id'].tolist(),
+                format_func=lambda value: str(signals.loc[signals['id'].eq(value), 'title'].iloc[0])[:140])
+            selected = signals.loc[signals['id'].eq(selection)].iloc[0].fillna('').to_dict()
+            st.write(selected['title'])
+            st.caption(primary_source_status(selected))
+            st.caption("Passages show wording in the stored record. They do not prove an installation, purchase, or exact product compatibility.")
+            st.dataframe(pd.DataFrame(support_passages(selected)), hide_index=True, width="stretch")
+            st.text(selected.get('summary', ''))
+            st.link_button("Read source", selected['url'], disabled=not bool(selected['url']))
+            st.caption(f"First retrieved: {selected.get('first_seen_at') or 'Unknown (legacy)'} · Last retrieved: {selected.get('last_seen_at') or 'Unknown (legacy)'}")
+            if selected.get('source_type') == 'news':
+                related = signals[signals['corroboration_group'].eq(selected['corroboration_group'])]
+                st.write(f"{len(related)} stored news record(s) share this normalized headline; counted once for corroboration.")
+                st.caption("Original-announcement verification is manual. Similar headlines do not establish that two sources are independent.")
+                primary = primary_reviews_df()
+                previous = primary[primary['signal_id'].eq(selection)]
+                if not previous.empty:
+                    st.dataframe(previous, hide_index=True, width='stretch')
+                with st.form('original_source_review'):
+                    original_url = st.text_input('Original announcement URL')
+                    original_passage = st.text_area('Exact supporting passage from the original announcement')
+                    original_reviewer = st.text_input('Source reviewer')
+                    confirmed = st.checkbox('I opened the original source and verified this passage')
+                    if st.form_submit_button('Save original-source review'):
+                        if confirmed:
+                            try:
+                                save_primary_review(selection, original_url, original_passage, original_reviewer)
+                                st.rerun()
+                            except ValueError as exc:
+                                st.error(str(exc))
+                        else:
+                            st.error('Verify the original announcement before saving.')
+                if not primary.empty:
+                    st.download_button('Export original-source reviews', primary.to_csv(index=False), 'ICP-MS_original_source_reviews.csv', 'text/csv')
+                st.caption('Original-source reviews are reviewer attestations, not automatic fact checks. Export local reviews before a runtime reset.')
+    with benchmark_tab:
+        st.info("No accuracy percentage is claimed without reviewed labels. This benchmark measures the reviewed sample, not the entire market or purchase probability.")
+        labels = benchmark_labels_df()
+        metrics, excluded = benchmark_metrics(labels, all_evidence)
+        st.dataframe(metrics, hide_index=True, width="stretch")
+        st.caption(f"{excluded} stale, missing or unsigned labels excluded. Tender labels must be reviewed on the evaluation date. Blank labels are unknown, never negative.")
+        candidates = benchmark_candidates(all_evidence)
+        st.download_button("Download stratified benchmark template", candidates.to_csv(index=False), "ICP-MS_benchmark_template.csv", "text/csv")
+        if not all_evidence.empty:
+            options = all_evidence['id'].tolist()
+            selected_id = st.selectbox("Benchmark evidence", options, format_func=lambda value: str(all_evidence.loc[all_evidence['id'].eq(value), 'title'].iloc[0])[:140])
+            row = all_evidence.loc[all_evidence['id'].eq(selected_id)].iloc[0].fillna('').to_dict()
+            st.write(row['title'])
+            st.text(row.get('summary',''))
+            st.link_button("Check benchmark source", row['url'], disabled=not bool(row['url']))
+            with st.form('benchmark_review'):
+                reviewer = st.text_input('Reviewer name')
+                relevant = st.selectbox('Does the source explicitly support ICP relevance?', ['', 'yes', 'no'])
+                expected_org = st.text_input('Correct organisation (blank = unreviewed; [none] = no organisation supported)')
+                expected_open = st.selectbox('Is this an open tender today?', ['', 'yes', 'no'])
+                notes = st.text_area('Supporting passage / review notes')
+                checked = st.checkbox('I reviewed the source and these labels')
+                if st.form_submit_button('Save benchmark review'):
+                    if reviewer.strip() and checked and any((relevant, expected_org, expected_open)):
+                        save_benchmark_label({**row, 'reviewer': reviewer, 'expected_relevance': relevant,
+                            'expected_organization': expected_org, 'expected_tender_open': expected_open, 'notes': notes})
+                        st.rerun()
+                    else:
+                        st.error('Enter a reviewer, review confirmation and at least one label.')
+        if not labels.empty:
+            st.download_button('Export benchmark reviews', labels.to_csv(index=False), 'ICP-MS_benchmark_reviews.csv', 'text/csv')
+        st.caption('Reviews are stored in this runtime database. Export them before a restart; repository snapshots do not back up private reviews.')
+        uploaded = st.file_uploader('Restore benchmark review export', type=['csv'], key='benchmark_import')
+        if uploaded is not None and st.button('Restore reviewed labels'):
+            from icpms_intel.database import connection
+            imported = pd.read_csv(uploaded).fillna('')
+            required = {'evidence_key', 'fingerprint', 'reviewer', 'reviewed_at'}
+            if not required.issubset(imported.columns):
+                st.error('Not a benchmark review export.')
+            else:
+                current = {evidence_key(r): source_fingerprint(r) for r in all_evidence.fillna('').to_dict('records')}
+                count = 0
+                with connection() as conn:
+                    for item in imported.to_dict('records'):
+                        if current.get(item['evidence_key']) == item['fingerprint'] and item['reviewer'] and item['reviewed_at']:
+                            conn.execute('INSERT INTO benchmark_labels VALUES (?,?) ON CONFLICT(evidence_key) DO UPDATE SET payload=excluded.payload', (item['evidence_key'], json.dumps(item)))
+                            count += 1
+                st.success(f'Restored {count} matching reviews; unchanged review dates retained.')
+    with coverage_tab:
+        status = read_update_status()
+        reports = status.get('collection_results', [])
+        st.caption('Each row is one source/query attempt. A successful bounded search does not guarantee complete coverage. Zero matches and request failures are different outcomes.')
+        if reports:
+            st.dataframe(pd.DataFrame(reports), hide_index=True, width='stretch')
+            st.download_button('Export source coverage', pd.DataFrame(reports).to_csv(index=False), 'ICP-MS_source_coverage.csv', 'text/csv')
+            last = pd.to_datetime(status.get('last_success_utc'), utc=True, errors='coerce')
+            if pd.isna(last) or pd.Timestamp.now(tz='UTC') - last > pd.Timedelta(hours=36):
+                st.warning('No successful collection confirmed within the last 36 hours.')
+        else:
+            st.info('Per-query coverage will appear after the next upgraded daily collection.')
+    with history_tab:
+        tenders = signals[signals['signal_kind'].eq('Procurement')]
+        st.subheader('Retained procurement records')
+        st.dataframe(tenders.reindex(columns=['title','organization','tender_status','notice_status','response_deadline','url']), hide_index=True, width='stretch')
+        st.caption('Not returned means absent from the latest bounded search; it does not mean awarded or cancelled. Deadline expiry excludes an item from active opportunities.')
+        observation_path = Path('data/observations.csv')
+        prediction_path = Path('data/predictions.csv')
+        if observation_path.exists() and prediction_path.exists():
+            observations = pd.read_csv(observation_path)
+            predictions = pd.read_csv(prediction_path)
+            st.subheader('Forward-only outcome tracking')
+            st.dataframe(prospective_outcomes(predictions, observations), hide_index=True, width='stretch')
+            st.caption('90-day research-priority snapshots are frozen at collection time. Only later first-observed public signals count. No observed signal is not proof of no purchase. Scores are not probabilities.')
+            st.download_button('Export frozen predictions', predictions.to_csv(index=False), 'ICP-MS_predictions.csv', 'text/csv')
+            st.download_button('Export observation history', observations.to_csv(index=False), 'ICP-MS_observations.csv', 'text/csv')
+        else:
+            st.info('Forward-only history starts with the upgraded collector; earlier predictions are not fabricated.')
+
 elif page == "Review & Backtesting":
     hero("Improve classifications with human review and test whether earlier predictions produced observable outcomes.")
     review_tab, outcome_tab = st.tabs(["Signal review", "Outcome calibration"])
@@ -346,6 +475,7 @@ elif page == "Review & Backtesting":
         if not feedback.empty:
             st.download_button("Export review history", feedback.to_csv(index=False), "ICP-MS_signal_reviews.csv", "text/csv")
     with outcome_tab:
+        st.info("Manually entered historical probabilities are retrospective diagnostics, not validated forecasts. Forward-only observations are in Evidence & Accuracy.")
         history = outcomes_df()
         metrics = calibration_metrics(history)
         a, b, c = st.columns(3)
@@ -427,7 +557,7 @@ elif page == "Settings":
     st.subheader("System status")
     update_status = read_update_status()
     st.json({
-        "version": "2.0.0",
+        "version": "2.2.0",
         "database": "SQLite runtime store restored from repository-backed public snapshot",
         "scheduled_update": "Daily at 19:00 UTC (05:00 AEST / 06:00 AEDT)",
         "last_update": update_status or "Waiting for first scheduled run",
@@ -453,7 +583,7 @@ elif page == "Settings":
         - Do not interpret the opportunity index as promised revenue.
         """
     )
-    if st.button("Restore starter evidence"):
+    if st.button("Restore default watch queries"):
         inserted, skipped = seed_database()
         st.success(f"Added {inserted}; {skipped} already present.")
         st.rerun()

@@ -142,7 +142,7 @@ GRANT_QUERIES = [
 
 
 def seed_database(path: str | None = None) -> tuple[int, int]:
-    result = insert_signals(starter_signals(), path)
+    result = (0, 0)  # Starter notes are illustrative, not dated public evidence.
     for query in DEFAULT_QUERIES:
         add_watch_query(query, path)
     return result

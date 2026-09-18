@@ -4,7 +4,7 @@ import html
 import os
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from urllib.parse import quote
 
 import feedparser
@@ -20,6 +20,34 @@ from .taxonomy import (
 )
 
 TIMEOUT = int(os.getenv("ICPMS_REQUEST_TIMEOUT", "20"))
+class CollectionResult(list):
+    def __init__(self, rows, fetched, total=None, limit=None):
+        super().__init__(rows)
+        self.coverage = {'fetched': fetched, 'matched': len(rows), 'total_reported': total,
+                         'limit': limit, 'coverage': 'bounded search; completeness not established',
+                         'possibly_truncated': (total > fetched if isinstance(total, (int, float)) else bool(limit and fetched >= limit))}
+
+
+def _result(rows, response, source, limit):
+    body = response.json()
+    if source == 'Crossref':
+        fetched = len(body.get('message', {}).get('items', [])); total = body.get('message', {}).get('total-results')
+    elif source == 'Europe PMC':
+        fetched = len(body.get('resultList', {}).get('result', [])); total = body.get('hitCount')
+    elif source == 'OpenAlex':
+        fetched = len(body.get('results', [])); total = body.get('meta', {}).get('count')
+    elif source == 'NIH RePORTER':
+        fetched = len(body.get('results', [])); total = body.get('meta', {}).get('total')
+    elif source == 'TED procurement':
+        fetched = len(body.get('notices', [])); total = body.get('totalNoticeCount')
+    else:
+        fetched = len(rows); total = None
+    now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    for row in rows:
+        row.update(first_seen_at=now, last_seen_at=now, collector_name=source)
+    return CollectionResult(rows, fetched, total, limit)
+
+
 HEADERS = {"User-Agent": "ICPMS-Potential-Intelligence-System/1.0 (public research)"}
 TED_SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
 ICP_MASS_SPEC_TERMS = (
@@ -149,18 +177,18 @@ def collect_crossref(query: str, days: int = 730, limit: int = 40) -> list[dict]
             "buying_intent": 0.28,
             "raw_json": item,
         })
-    return results
+    return _result(results, response, "Crossref", limit)
 
 
 def collect_europe_pmc(query: str, days: int = 730, limit: int = 40) -> list[dict]:
     start_year = (date.today() - timedelta(days=days)).year
     api = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-    params = {"query": f'({query}) AND FIRST_PDATE:[{start_year}-01-01 TO *]', "format": "json", "pageSize": min(limit, 100)}
+    params = {"query": f'({query}) AND FIRST_PDATE:[{start_year}-01-01 TO *]', "format": "json", "pageSize": min(limit, 100), "resultType": "core"}
     response = _get(api, params=params)
     results = []
     for item in response.json().get("resultList", {}).get("result", []):
         title = _clean(item.get("title"))
-        summary = _clean(item.get("journalTitle", ""))
+        summary = _clean(item.get("abstractText", ""))
         text = f"{title} {summary}"
         identifier = item.get("doi") or item.get("pmcid") or item.get("pmid", "")
         link = (f"https://doi.org/{item['doi']}" if item.get("doi") else
@@ -185,7 +213,7 @@ def collect_europe_pmc(query: str, days: int = 730, limit: int = 40) -> list[dic
             "buying_intent": 0.26,
             "raw_json": {"id": identifier, **item},
         })
-    return results
+    return _result(results, response, "Europe PMC", limit)
 
 
 def collect_rss(feed_url: str, source_name: str = "Public RSS") -> list[dict]:
@@ -216,7 +244,10 @@ def collect_rss(feed_url: str, source_name: str = "Public RSS") -> list[dict]:
             "buying_intent": 0.38,
             "raw_json": dict(entry),
         })
-    return rows
+    now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    for row in rows:
+        row.update(first_seen_at=now, last_seen_at=now, collector_name=source_name)
+    return CollectionResult(rows, len(feed.entries[:100]), None, 100)
 
 
 def collect_openalex(query: str, days: int = 730, limit: int = 40) -> list[dict]:
@@ -236,10 +267,13 @@ def collect_openalex(query: str, days: int = 730, limit: int = 40) -> list[dict]
             institutions.extend(authorship.get("institutions", []))
         institution = next((entry for entry in institutions if entry.get("display_name")), {})
         organization = _clean(institution.get("display_name"))
-        text = title
+        positions = item.get('abstract_inverted_index') or {}
+        words = sorted((i, word) for word, indices in positions.items() for i in indices)
+        summary = _clean(' '.join(word for _, word in words))
+        text = title + ' ' + summary
         rows.append({
             "title": title or "Untitled OpenAlex record",
-            "summary": _clean(item.get("type_crossref") or item.get("type", "")),
+            "summary": summary[:2000],
             "url": item.get("doi") or item.get("id", ""),
             "source_name": "OpenAlex",
             "doi": item.get("doi", ""),
@@ -248,7 +282,7 @@ def collect_openalex(query: str, days: int = 730, limit: int = 40) -> list[dict]
             "sector": classify_sector(text),
             "region": _clean((institution.get("country_code") or "Global")),
             "organization": organization,
-            "organization_id": institution.get("id", ""),
+            "organization_id": institution.get("ror") or institution.get("id", ""),
             "instrument_vendor": _vendor(text),
             "signal_kind": "Research activity",
             "product_family": classify_product(text),
@@ -257,7 +291,7 @@ def collect_openalex(query: str, days: int = 730, limit: int = 40) -> list[dict]
             "buying_intent": 0.3,
             "raw_json": {"openalex_id": item.get("id"), "institution_id": institution.get("id")},
         })
-    return rows
+    return _result(rows, response, "OpenAlex", limit)
 
 
 def collect_nih_reporter(query: str, days: int = 1095, limit: int = 40) -> list[dict]:
@@ -309,7 +343,7 @@ def collect_nih_reporter(query: str, days: int = 1095, limit: int = 40) -> list[
             "buying_intent": 0.67,
             "raw_json": {"project_num": project_num, "award_amount": item.get("award_amount")},
         })
-    return rows
+    return _result(rows, response, "NIH RePORTER", limit)
 
 
 def collect_sam_gov(query: str, api_key: str, days: int = 90, limit: int = 100) -> list[dict]:
@@ -346,7 +380,7 @@ def collect_sam_gov(query: str, api_key: str, days: int = 90, limit: int = 100) 
             "credibility": SOURCE_CREDIBILITY["procurement"], "relevance": 0.94,
             "buying_intent": 0.98, "raw_json": {"notice_id": notice_id},
         })
-    return rows
+    return _result(rows, response, "SAM.gov", limit)
 
 
 def collect_ted_procurement(days: int = 730, limit: int = 250) -> list[dict]:
@@ -422,7 +456,7 @@ def collect_ted_procurement(days: int = 730, limit: int = 250) -> list[dict]:
             "buying_intent": 0.98,
             "raw_json": {"publication_number": notice_number, "deadline": deadlines, "cpv": cpv},
         })
-    return rows
+    return _result(rows, response, "TED procurement", limit)
 
 
 def collect_gdelt_news(query: str, limit: int = 40) -> list[dict]:
@@ -458,4 +492,4 @@ def collect_gdelt_news(query: str, limit: int = 40) -> list[dict]:
             "buying_intent": 0.55 if classify_signal(text) != "Research activity" else 0.32,
             "raw_json": {"language": item.get("language"), "domain": item.get("domain")},
         })
-    return rows
+    return _result(rows, response, "GDELT", limit)

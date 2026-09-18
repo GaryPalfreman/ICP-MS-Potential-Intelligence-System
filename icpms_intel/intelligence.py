@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 
 import pandas as pd
+from .verification import corroboration_key
 from .quality import source_relevance, tender_state
 
 
@@ -175,7 +176,8 @@ def enrich_signals(df: pd.DataFrame) -> pd.DataFrame:
         out["instrument_model"] = ""
     out["instrument_vendor"] = [existing or item[0] for existing, item in zip(out["instrument_vendor"].fillna(""), detected)]
     out["instrument_model"] = [existing or item[1] for existing, item in zip(out["instrument_model"].fillna(""), detected)]
-    counts = out[out["organization"] != ""].groupby("organization").size().to_dict()
+    out["corroboration_group"] = out.apply(corroboration_key, axis=1)
+    counts = out[out["organization"] != ""].groupby("organization")["corroboration_group"].nunique().to_dict()
     out["sales_stage"] = out.apply(sales_stage, axis=1)
     out["stage_rank"] = out["sales_stage"].map(STAGE_ORDER).fillna(1).astype(int)
     fits = out.apply(product_fit, axis=1)
@@ -193,6 +195,9 @@ def trend_acceleration(df: pd.DataFrame, today: date | None = None) -> pd.DataFr
         return pd.DataFrame(columns=["sector", "last_90_days", "previous_90_days", "acceleration", "momentum"])
     current = today or date.today()
     work = df.copy()
+    if "title" in work:
+        work["_group"] = work.apply(corroboration_key, axis=1)
+        work = work.drop_duplicates("_group")
     work["_date"] = pd.to_datetime(work["published_date"], errors="coerce").dt.date
     recent_start = current - timedelta(days=90)
     prior_start = current - timedelta(days=180)

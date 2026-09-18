@@ -28,18 +28,23 @@ jobs:
       - name: Verify intelligence and snapshot logic
         run: python -m pytest -q
       - name: Collect and deduplicate public evidence
+        id: refresh
+        continue-on-error: true
         run: python -m scripts.daily_update
         env:
           SAM_GOV_API_KEY: ${{ secrets.SAM_GOV_API_KEY }}
           OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}
       - name: Commit refreshed snapshot
         run: |
-          if git diff --quiet -- data/public_signals.csv data/update_status.json; then
+          if git diff --quiet -- data/public_signals.csv data/update_status.json data/observations.csv data/predictions.csv; then
             echo "No snapshot changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/public_signals.csv data/update_status.json
+          git add data/public_signals.csv data/update_status.json data/observations.csv data/predictions.csv
           git commit -m "data: daily ICP-MS intelligence update"
           git push
+      - name: Report collector failure after preserving status
+        if: steps.refresh.outcome == 'failure'
+        run: exit 1
