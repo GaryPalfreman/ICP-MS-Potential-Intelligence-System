@@ -24,7 +24,7 @@ It contains **no private company data or company branding**.
 - Human signal review and score adjustments
 - Retrospective outcome diagnostics and forward-only 90-day research-priority tracking
 - Conservative/expected/accelerated Monte Carlo scenarios
-- Markdown, Excel, CSV and MiroFish-ready JSON exports
+- Markdown, Excel and CSV exports, plus a MiroFish-compatible Markdown seed and replay archive
 - SQLite persistence
 - Automatic daily public-data refresh with a restart-safe repository snapshot
 - Docker and Streamlit deployment support
@@ -155,7 +155,8 @@ The scenario engine runs 5,000 deterministic Monte Carlo trials around transpare
 
 ## MiroFish
 
-The **Reports & Export** page creates a domain-specific JSON seed pack containing:
+The **Reports & Export** page creates a domain-specific Markdown seed accepted by the official
+MiroFish uploader. It contains:
 
 - The prediction question
 - Agent archetypes
@@ -163,7 +164,18 @@ The **Reports & Export** page creates a domain-specific JSON seed pack containin
 - Sector and product outlooks
 - Up to 200 evidence records
 
-This can be supplied to a separately deployed MiroFish instance. MiroFish requires its own LLM and memory-service configuration; the core intelligence system does not.
+Upload `ICP-MS_MiroFish_Seed.md` when creating a MiroFish project, then paste the same simulation
+question into MiroFish's simulation-requirement field. MiroFish requires its own OpenAI-compatible
+LLM and Zep Cloud configuration; the core intelligence system does not.
+
+The companion `ICP-MS_MiroFish_History.zip` is the reproducibility and recovery copy. It contains
+the exact seed, simulation question, full evidence and outlook snapshots, prediction/observation
+history, available human-review exports, and a SHA-256 manifest. Keep one archive for every material
+run so later results can be traced to their actual inputs.
+
+For a self-hosted MiroFish deployment, put `backend/uploads` on durable storage. With the official
+Docker Compose file this is the `./backend/uploads:/app/backend/uploads` volume. Back that directory
+up independently; rebuilding a container without the volume can lose the local project and run files.
 
 ## Test
 

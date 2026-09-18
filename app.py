@@ -1,5 +1,5 @@
 from __future__ import annotations
-# Deployment refresh: v2.2.0 verified by GitHub Actions
+# MiroFish-compatible export and reproducible history archive
 
 import io
 import json
@@ -37,7 +37,12 @@ from icpms_intel.verification import (
     evidence_key, source_fingerprint, prospective_outcomes,
 )
 from icpms_intel.intelligence import calibration_metrics, daily_briefing, enrich_signals, trend_acceleration
-from icpms_intel.reporting import intelligence_report, mirofish_seed_pack
+from icpms_intel.reporting import (
+    DEFAULT_MIROFISH_QUESTION,
+    intelligence_report,
+    mirofish_archive_bundle,
+    mirofish_seed_document,
+)
 from icpms_intel.scenario import ScenarioInputs, run_scenario, scenario_label
 from icpms_intel.scoring import organization_scores, score_signals
 from icpms_intel.seed import seed_database
@@ -535,30 +540,59 @@ elif page == "Scenario Lab":
     st.markdown('<p class="evidence">These indices compare relative opportunity under explicit assumptions. They are not unit-sales or revenue forecasts.</p>', unsafe_allow_html=True)
 
 elif page == "Reports & Export":
-    hero("Export the evidence, scenario results and a MiroFish-ready simulation package.")
+    hero("Export evidence, scenario results and a replayable MiroFish simulation package.")
     inputs = ScenarioInputs()
     sector_outlook, product_outlook = run_scenario(signals, inputs)
     report = intelligence_report(signals, prospects, sector_outlook, product_outlook)
-    seed_pack = mirofish_seed_pack(signals, sector_outlook, product_outlook)
+    st.subheader("MiroFish simulation question")
+    simulation_question = st.text_area(
+        "What should the agents explore?",
+        value=DEFAULT_MIROFISH_QUESTION,
+        height=120,
+        help="This is included in the seed document and saved separately for pasting into MiroFish.",
+    )
+    seed_document = mirofish_seed_document(
+        signals, sector_outlook, product_outlook, simulation_question
+    )
+    histories = {
+        "signal_reviews": feedback_df(),
+        "primary_source_reviews": primary_reviews_df(),
+        "benchmark_labels": benchmark_labels_df(),
+        "prediction_outcomes": outcomes_df(),
+    }
+    for archive_name, archive_path in (
+        ("observations", Path("data/observations.csv")),
+        ("predictions", Path("data/predictions.csv")),
+    ):
+        if archive_path.exists():
+            histories[archive_name] = pd.read_csv(archive_path)
+    archive_bundle = mirofish_archive_bundle(
+        signals, sector_outlook, product_outlook, simulation_question, histories
+    )
     st.subheader("Current intelligence summary")
     st.markdown(report[:8000])
-    c1, c2, c3 = st.columns(3)
+    st.info(
+        "In MiroFish, create a project, upload the Markdown seed, and paste the saved simulation "
+        "requirement. Keep the ZIP as the dated audit and recovery copy for that run."
+    )
+    c1, c2, c3, c4 = st.columns(4)
     c1.download_button("Download report", report, "ICP-MS_Potential_Intelligence_Report.md", "text/markdown", width="stretch")
-    c2.download_button("Download MiroFish seed pack", seed_pack, "ICP-MS_MiroFish_Seed_Pack.json", "application/json", width="stretch")
+    c2.download_button("Download MiroFish seed", seed_document, "ICP-MS_MiroFish_Seed.md", "text/markdown", width="stretch")
+    c3.download_button("Download history archive", archive_bundle, "ICP-MS_MiroFish_History.zip", "application/zip", width="stretch")
     workbook = io.BytesIO()
     with pd.ExcelWriter(workbook, engine="xlsxwriter") as writer:
         signals.to_excel(writer, sheet_name="Evidence", index=False)
         prospects.to_excel(writer, sheet_name="Organisations", index=False)
         sector_outlook.to_excel(writer, sheet_name="Sector Outlook", index=False)
         product_outlook.to_excel(writer, sheet_name="Product Outlook", index=False)
-    c3.download_button("Download analysis workbook", workbook.getvalue(), "ICP-MS_Intelligence.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+    c4.download_button("Download analysis workbook", workbook.getvalue(), "ICP-MS_Intelligence.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
 
 elif page == "Settings":
     hero("System status, methodology and responsible-use controls.")
     st.subheader("System status")
     update_status = read_update_status()
     st.json({
-        "version": "2.2.0",
+        "version": "2.3.0",
         "database": "SQLite runtime store restored from repository-backed public snapshot",
         "scheduled_update": "Daily at 19:00 UTC (05:00 AEST / 06:00 AEDT)",
         "last_update": update_status or "Waiting for first scheduled run",

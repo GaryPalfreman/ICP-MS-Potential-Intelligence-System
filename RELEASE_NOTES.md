@@ -1,3 +1,12 @@
+# 2.3.0 — MiroFish compatibility and replayable history
+
+- Replaced the incorrectly labelled JSON upload with a Markdown seed accepted by the official
+  MiroFish uploader.
+- Added an editable simulation requirement and MiroFish-specific evidence-use rules.
+- Added a downloadable ZIP archive containing the exact seed, evidence and outlook snapshots,
+  predictions, observations, available reviews, and a checksummed manifest.
+- Documented durable MiroFish volume storage and the upload workflow.
+
 # 2.2.0 — Evidence verification and measurement
 
 The release adds an Evidence & Accuracy workspace, source support passages, reviewer-attested original
