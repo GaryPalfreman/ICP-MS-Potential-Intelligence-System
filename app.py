@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 import plotly.express as px
@@ -22,6 +22,7 @@ from icpms_intel.reporting import intelligence_report, mirofish_seed_pack
 from icpms_intel.scenario import ScenarioInputs, run_scenario, scenario_label
 from icpms_intel.scoring import organization_scores, score_signals
 from icpms_intel.seed import seed_database
+from icpms_intel.snapshots import load_public_snapshot, read_update_status
 from icpms_intel.taxonomy import PRODUCT_FAMILIES, SECTORS, SOURCE_CREDIBILITY, classify_product, classify_sector, classify_signal
 
 
@@ -41,6 +42,8 @@ background: linear-gradient(120deg, #0d2434 0%, #0b3138 100%); margin-bottom: 1r
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 init_db()
+if signals_df().empty:
+    load_public_snapshot()
 if signals_df().empty:
     seed_database()
 
@@ -75,6 +78,16 @@ prospects = organization_scores(signals, orgs)
 
 if page == "Overview":
     hero("Evidence-backed monitoring of ICP-MS markets, applications and potential purchasing signals.")
+    update_status = read_update_status()
+    if update_status.get("last_attempt_utc"):
+        try:
+            updated = datetime.fromisoformat(update_status["last_attempt_utc"]).strftime("%d %b %Y, %H:%M UTC")
+        except ValueError:
+            updated = update_status["last_attempt_utc"]
+        if update_status.get("successful"):
+            st.caption(f"Daily public-data update: healthy · Last completed {updated}")
+        else:
+            st.warning(f"The latest scheduled update completed with source warnings ({updated}). Existing evidence remains available.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Evidence signals", f"{len(signals):,}")
     c2.metric("Named organisations", f"{signals['organization'].fillna('').str.strip().ne('').sum():,}" if not signals.empty else "0")
@@ -262,9 +275,12 @@ elif page == "Reports & Export":
 elif page == "Settings":
     hero("System status, methodology and responsible-use controls.")
     st.subheader("System status")
+    update_status = read_update_status()
     st.json({
-        "version": "1.0.0",
-        "database": "SQLite persistent evidence store",
+        "version": "1.1.0",
+        "database": "SQLite runtime store restored from repository-backed public snapshot",
+        "scheduled_update": "Daily at 19:00 UTC (05:00 AEST / 06:00 AEDT)",
+        "last_update": update_status or "Waiting for first scheduled run",
         "live_collectors": ["Crossref", "Europe PMC", "RSS/Atom"],
         "paid_API_required": False,
         "evidence_signals": len(signals_df()),

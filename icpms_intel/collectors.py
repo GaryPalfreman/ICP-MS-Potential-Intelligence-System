@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import os
 import re
+import time
 from datetime import date, timedelta
 from urllib.parse import quote
 
@@ -19,6 +20,19 @@ from .taxonomy import (
 
 TIMEOUT = int(os.getenv("ICPMS_REQUEST_TIMEOUT", "20"))
 HEADERS = {"User-Agent": "ICPMS-Potential-Intelligence-System/1.0 (public research)"}
+
+
+def _get(url: str, **kwargs):
+    """GET a public endpoint with bounded backoff for rate limits and outages."""
+    for attempt in range(4):
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT, **kwargs)
+        if response.status_code not in {429, 500, 502, 503, 504} or attempt == 3:
+            response.raise_for_status()
+            return response
+        retry_after = response.headers.get("Retry-After", "")
+        delay = float(retry_after) if retry_after.replace(".", "", 1).isdigit() else 2 ** attempt
+        time.sleep(min(delay, 15))
+    raise RuntimeError("Public source request failed after retries")
 
 
 def _clean(value: str | None) -> str:
@@ -59,8 +73,7 @@ def collect_crossref(query: str, days: int = 730, limit: int = 40) -> list[dict]
         f"?query.bibliographic={quote(query)}&filter=from-pub-date:{start}"
         f"&rows={min(limit, 100)}&select=DOI,title,abstract,published,URL,author,publisher,container-title"
     )
-    response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-    response.raise_for_status()
+    response = _get(url)
     results = []
     for item in response.json().get("message", {}).get("items", []):
         title = _clean(" ".join(item.get("title", [])))
@@ -93,8 +106,7 @@ def collect_europe_pmc(query: str, days: int = 730, limit: int = 40) -> list[dic
     start_year = (date.today() - timedelta(days=days)).year
     api = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     params = {"query": f'({query}) AND FIRST_PDATE:[{start_year}-01-01 TO *]', "format": "json", "pageSize": min(limit, 100)}
-    response = requests.get(api, params=params, headers=HEADERS, timeout=TIMEOUT)
-    response.raise_for_status()
+    response = _get(api, params=params)
     results = []
     for item in response.json().get("resultList", {}).get("result", []):
         title = _clean(item.get("title"))
@@ -124,8 +136,7 @@ def collect_europe_pmc(query: str, days: int = 730, limit: int = 40) -> list[dic
 
 
 def collect_rss(feed_url: str, source_name: str = "Public RSS") -> list[dict]:
-    response = requests.get(feed_url, headers=HEADERS, timeout=TIMEOUT)
-    response.raise_for_status()
+    response = _get(feed_url)
     feed = feedparser.parse(response.content)
     rows = []
     for entry in feed.entries[:100]:
@@ -153,4 +164,3 @@ def collect_rss(feed_url: str, source_name: str = "Public RSS") -> list[dict]:
             "raw_json": dict(entry),
         })
     return rows
-

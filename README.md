@@ -16,6 +16,7 @@ It contains **no private company data or company branding**.
 - Conservative/expected/accelerated Monte Carlo scenarios
 - Markdown, Excel, CSV and MiroFish-ready JSON exports
 - SQLite persistence
+- Automatic daily public-data refresh with a restart-safe repository snapshot
 - Docker and Streamlit deployment support
 
 ## Quick start
@@ -44,7 +45,13 @@ docker compose up --build
 3. Set the main file to `app.py`.
 4. Deploy. No secret or paid API is required for the core system.
 
-SQLite is appropriate for a single-user deployment. For a multi-user production deployment, replace it with managed PostgreSQL and add authentication.
+The included GitHub Actions workflow refreshes the public evidence snapshot every day at 19:00 UTC
+(05:00 AEST / 06:00 AEDT in Melbourne) and can also be started manually from the repository's
+**Actions** tab. Each successful snapshot commit triggers Streamlit Community Cloud to redeploy.
+
+The repository snapshot preserves automatically collected public evidence across Streamlit restarts.
+Manual entries made only through the running Streamlit app remain local to that runtime. For durable
+multi-user editing, replace SQLite with managed PostgreSQL and add authentication.
 
 ## Recommended workflow
 

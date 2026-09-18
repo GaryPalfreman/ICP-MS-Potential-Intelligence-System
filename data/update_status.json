@@ -1,0 +1,17 @@
+{
+  "last_attempt_utc": "2026-09-18T11:05:54+00:00",
+  "successful": false,
+  "sources": [
+    "Crossref",
+    "Europe PMC"
+  ],
+  "queries_run": 7,
+  "records_received": 480,
+  "new_records": 400,
+  "duplicates_skipped": 80,
+  "snapshot_records": 408,
+  "errors": [
+    "Crossref [\"ICP-MS\" battery]: 429 Client Error: Too Many Requests for url: https://api.crossref.org/works?query.bibliographic=%22ICP-MS%22%20battery&filter=from-pub-date:2024-09-18&rows=40&select=DOI,title,abstract,published,URL,author,publisher,container-title",
+    "Crossref [\"ICP-MS\" semiconductor]: 429 Client Error: Too Many Requests for url: https://api.crossref.org/works?query.bibliographic=%22ICP-MS%22%20semiconductor&filter=from-pub-date:2024-09-18&rows=40&select=DOI,title,abstract,published,URL,author,publisher,container-title"
+  ]
+}
