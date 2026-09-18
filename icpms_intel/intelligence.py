@@ -91,7 +91,10 @@ def sales_stage(row: dict | pd.Series) -> str:
     text = " ".join(str(row.get(key, "")) for key in ("title", "summary", "signal_kind")).lower()
     if any(term in text for term in ("tender", "request for proposal", "request for tender", "rfp")):
         return "Active tender"
-    if any(term in text for term in ("installed", "installation", "commissioned", "new instrument")):
+    if any(term in text for term in (
+        "installed", "installation", "commissioned", "commissions", "new instrument",
+        "now operational", "invests in new", "new equipment",
+    )):
         return "Instrument installation"
     return KIND_TO_STAGE.get(str(row.get("signal_kind", "")), "Research activity")
 

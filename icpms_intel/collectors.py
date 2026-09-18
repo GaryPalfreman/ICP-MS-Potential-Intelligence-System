@@ -24,15 +24,17 @@ HEADERS = {"User-Agent": "ICPMS-Potential-Intelligence-System/1.0 (public resear
 
 def _get(url: str, **kwargs):
     """GET a public endpoint with bounded backoff for rate limits and outages."""
-    for attempt in range(4):
+    timeout = kwargs.pop("timeout", TIMEOUT)
+    attempts = int(kwargs.pop("_attempts", 4))
+    for attempt in range(attempts):
         try:
-            response = requests.get(url, headers=HEADERS, timeout=TIMEOUT, **kwargs)
+            response = requests.get(url, headers=HEADERS, timeout=timeout, **kwargs)
         except requests.RequestException:
-            if attempt == 3:
+            if attempt == attempts - 1:
                 raise
             time.sleep(min(2 ** attempt, 15))
             continue
-        if response.status_code not in {429, 500, 502, 503, 504} or attempt == 3:
+        if response.status_code not in {429, 500, 502, 503, 504} or attempt == attempts - 1:
             response.raise_for_status()
             return response
         retry_after = response.headers.get("Retry-After", "")
@@ -310,6 +312,7 @@ def collect_gdelt_news(query: str, limit: int = 40) -> list[dict]:
             "maxrecords": min(limit, 250), "sort": "DateDesc", "timespan": "3months",
         },
         timeout=min(TIMEOUT, 20),
+        _attempts=2,
     )
     rows = []
     for item in response.json().get("articles", []):

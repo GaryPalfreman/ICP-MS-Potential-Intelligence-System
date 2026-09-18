@@ -51,11 +51,17 @@ SIGNAL_KINDS = {
     "Facility expansion": ["new facility", "expansion", "cleanroom", "new laboratory", "new lab"],
     "Funding": ["grant", "funding", "award", "investment"],
     "Hiring": ["hiring", "vacancy", "job", "recruit", "analyst"],
-    "Instrument installation": ["installed", "installation", "new instrument", "commissioned"],
+    "Instrument installation": [
+        "installed", "installation", "new instrument", "commissioned", "commissions",
+        "now operational", "invests in new", "new equipment",
+    ],
     "Regulation": ["regulation", "standard", "guideline", "method update", "compliance"],
     "Research activity": ["study", "research", "publication", "method", "application"],
     "Operational pain": ["carryover", "blockage", "downtime", "washout", "maintenance", "drift"],
-    "Market development": ["market", "demand", "growth", "supply chain", "manufacturing"],
+    "Market development": [
+        "market", "demand", "growth", "supply chain", "manufacturing",
+        "launches new", "introduces", "expands icp-ms portfolio",
+    ],
 }
 
 SOURCE_CREDIBILITY = {
@@ -92,4 +98,3 @@ def classify_product(text: str) -> str:
 
 def classify_signal(text: str) -> str:
     return match_taxonomy(text, SIGNAL_KINDS, "Research activity")
-

@@ -21,6 +21,11 @@ def test_direct_tender_reaches_active_stage():
     assert sales_stage(row) == "Active tender"
 
 
+def test_operational_platform_reaches_installation_stage():
+    row = {"title": "New state-of-the-art ICP-MS platform now operational", "signal_kind": "Research activity"}
+    assert sales_stage(row) == "Instrument installation"
+
+
 def test_signal_enrichment_explains_product_fit():
     frame = pd.DataFrame([{
         "title": "Laboratory needs faster washout and lower carryover",

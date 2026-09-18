@@ -18,6 +18,7 @@ from icpms_intel.collectors import (
 from icpms_intel.database import init_db, insert_signals, signals_df
 from icpms_intel.seed import DEFAULT_QUERIES, GRANT_QUERIES, starter_signals
 from icpms_intel.snapshots import SNAPSHOT_PATH, STATUS_PATH, load_public_snapshot
+from icpms_intel.taxonomy import classify_product, classify_sector, classify_signal
 
 
 def main() -> int:
@@ -94,6 +95,19 @@ def main() -> int:
 
         inserted, skipped = insert_signals(collected, db)
         snapshot = signals_df(db).drop(columns=["id", "collected_at", "raw_json"], errors="ignore")
+        # Re-evaluate text-derived fields so taxonomy improvements also upgrade
+        # previously stored news records rather than only brand-new URLs.
+        text = (snapshot["title"].fillna("") + " " + snapshot["summary"].fillna(""))
+        news_mask = snapshot["source_type"].eq("news")
+        snapshot.loc[news_mask, "signal_kind"] = text[news_mask].map(classify_signal)
+        snapshot.loc[news_mask, "sector"] = text[news_mask].map(classify_sector)
+        snapshot.loc[news_mask, "product_family"] = text[news_mask].map(classify_product)
+        intent = {
+            "Procurement": .95, "Instrument installation": .88, "Facility expansion": .80,
+            "Hiring": .70, "Funding": .65, "Regulation": .58, "Market development": .45,
+            "Operational pain": .62, "Research activity": .32,
+        }
+        snapshot.loc[news_mask, "buying_intent"] = snapshot.loc[news_mask, "signal_kind"].map(intent).fillna(.32)
         snapshot["summary"] = snapshot["summary"].fillna("").astype(str).str.slice(0, 240)
         snapshot = snapshot.sort_values(["published_date", "title"], ascending=[False, True], na_position="last")
         snapshot.to_csv(SNAPSHOT_PATH, index=False)
