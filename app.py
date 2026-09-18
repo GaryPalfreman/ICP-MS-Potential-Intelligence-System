@@ -31,7 +31,7 @@ from icpms_intel.reporting import intelligence_report, mirofish_seed_pack
 from icpms_intel.scenario import ScenarioInputs, run_scenario, scenario_label
 from icpms_intel.scoring import organization_scores, score_signals
 from icpms_intel.seed import seed_database
-from icpms_intel.snapshots import load_public_snapshot, read_update_status
+from icpms_intel.snapshots import load_public_snapshot, read_update_status, sync_public_snapshot
 from icpms_intel.taxonomy import PRODUCT_FAMILIES, SECTORS, SOURCE_CREDIBILITY, classify_product, classify_sector, classify_signal
 
 
@@ -51,6 +51,10 @@ background: linear-gradient(120deg, #0d2434 0%, #0b3138 100%); margin-bottom: 1r
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 init_db()
+try:
+    sync_public_snapshot()
+except (ValueError, OSError) as exc:
+    st.warning(f"Snapshot refresh unavailable; saved evidence retained: {exc}")
 if signals_df().empty:
     load_public_snapshot()
 if signals_df().empty:
@@ -92,6 +96,7 @@ pages = [
 ]
 page = st.sidebar.radio("Workspace", pages)
 st.sidebar.caption("Public evidence only · No confidential company data")
+st.sidebar.caption("Scores are heuristic research priorities, not calibrated purchase probabilities.")
 
 signals = filtered_signals()
 orgs = organizations_df()
@@ -118,7 +123,7 @@ if page == "Overview":
     ].nunique() if not signals.empty else 0
     c2.metric("Named organisations", f"{named_organizations:,}")
     c3.metric("High-value signals", f"{(signals['opportunity_score'] >= 70).sum():,}" if not signals.empty else "0")
-    c4.metric("Open tenders", f"{signals['signal_kind'].eq('Procurement').sum():,}" if not signals.empty else "0")
+    c4.metric("Verified open tenders", f"{signals['tender_status'].eq('Open').sum():,}" if not signals.empty else "0")
     brief = daily_briefing(signals)
     st.caption(
         f"Last 7 days: {brief['new_signals']} new public signals · "
@@ -157,7 +162,7 @@ elif page == "Daily Briefing":
     right.markdown("**Most active sectors**")
     right.write(brief["top_sectors"] or "No sector changes in the latest window.")
     recent_dates = pd.to_datetime(signals.get("published_date"), errors="coerce")
-    recent = signals[recent_dates >= pd.Timestamp(date.today()) - pd.Timedelta(days=7)].copy()
+    recent = signals[recent_dates.between(pd.Timestamp(date.today()) - pd.Timedelta(days=7), pd.Timestamp(date.today()))].copy()
     if recent.empty:
         st.info("No newly published evidence was found in the last seven days.")
     else:
@@ -227,7 +232,7 @@ elif page == "Signals":
         mask = display.astype(str).apply(lambda col: col.str.contains(search, case=False, na=False)).any(axis=1)
         display = display[mask]
     st.dataframe(
-        display[["opportunity_score", "evidence_confidence", "title", "organization", "sales_stage", "sector", "region", "signal_kind", "recommended_product", "product_fit_confidence", "published_date", "source_name", "url"]],
+        display[["opportunity_score", "evidence_confidence", "relevance_basis", "title", "organization", "sales_stage", "tender_status", "response_deadline", "sector", "region", "signal_kind", "recommended_product", "product_fit_confidence", "published_date", "source_name", "url"]],
         width="stretch", hide_index=True,
         column_config={"url": st.column_config.LinkColumn("Evidence URL"), "opportunity_score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100)}
     )

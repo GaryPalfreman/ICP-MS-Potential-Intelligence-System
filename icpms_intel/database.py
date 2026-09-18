@@ -5,6 +5,7 @@ import os
 import re
 import sqlite3
 import unicodedata
+from urllib.parse import unquote
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable
@@ -18,10 +19,8 @@ DEFAULT_DB = os.getenv("ICPMS_DB_PATH", "data/intelligence.db")
 def evidence_identity(row: dict | sqlite3.Row) -> tuple[str, ...]:
     """Return a conservative identity key for one public-evidence record.
 
-    Academic indexes frequently expose the same paper through different URLs,
-    while missing URLs previously became SQLite NULL values that bypassed the
-    database UNIQUE constraint. Journal titles are therefore deduplicated by a
-    normalized title; other evidence retains distinct non-empty source URLs.
+    Prefer DOI, then exact URL. Title fallback is scoped by source and date;
+    matching titles alone must not merge distinct identified publications.
     """
     def value(name: str, default: str = ""):
         if isinstance(row, sqlite3.Row):
@@ -31,9 +30,19 @@ def evidence_identity(row: dict | sqlite3.Row) -> tuple[str, ...]:
     title = unicodedata.normalize("NFKC", str(value("title") or "")).casefold()
     title = re.sub(r"[^\w]+", " ", title, flags=re.UNICODE).strip()
     source_type = str(value("source_type", "other") or "other").strip().casefold()
-    url = str(value("url") or "").strip().casefold()
+    url = str(value("url") or "").strip()
     if source_type == "journal":
-        return ("journal", title)
+        doi = str(value("doi") or "").strip()
+        if doi.lower() in {"nan", "none"}:
+            doi = ""
+        match = re.search(r"(?:https?://(?:dx\.)?doi.org/|^doi:\s*)(.+)", doi or url, re.I)
+        if match:
+            doi = match.group(1)
+        if doi.startswith("10."):
+            return ("doi", unquote(doi).casefold())
+        if url and url.lower() not in {"nan", "none"}:
+            return ("journal-url", url)
+        return ("journal-fallback", title, str(value("source_name")), str(value("published_date")))
     return ("record", title, url)
 
 
@@ -84,6 +93,11 @@ def init_db(path: str | None = None) -> None:
             CREATE INDEX IF NOT EXISTS idx_signals_sector ON signals(sector);
             CREATE INDEX IF NOT EXISTS idx_signals_org ON signals(organization);
             CREATE INDEX IF NOT EXISTS idx_signals_date ON signals(published_date);
+            CREATE TABLE IF NOT EXISTS snapshot_state (path TEXT PRIMARY KEY, digest TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS snapshot_members (
+                path TEXT NOT NULL, signal_id INTEGER NOT NULL, active INTEGER NOT NULL,
+                PRIMARY KEY(path, signal_id)
+            );
 
             CREATE TABLE IF NOT EXISTS organizations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,7 +141,7 @@ def init_db(path: str | None = None) -> None:
             """
         )
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(signals)").fetchall()}
-        for name in ("organization_id", "instrument_model"):
+        for name in ("organization_id", "instrument_model", "doi", "response_deadline", "notice_status"):
             if name not in columns:
                 conn.execute(f"ALTER TABLE signals ADD COLUMN {name} TEXT DEFAULT ''")
 
@@ -138,16 +152,18 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
         INSERT OR IGNORE INTO signals (
             title, summary, url, source_name, source_type, published_date,
             sector, region, organization, organization_id, instrument_vendor, instrument_model, signal_kind,
-            product_family, credibility, relevance, buying_intent, raw_json
+            product_family, credibility, relevance, buying_intent, raw_json,
+            doi, response_deadline, notice_status
         ) VALUES (
             :title, :summary, :url, :source_name, :source_type, :published_date,
             :sector, :region, :organization, :organization_id, :instrument_vendor, :instrument_model, :signal_kind,
-            :product_family, :credibility, :relevance, :buying_intent, :raw_json
+            :product_family, :credibility, :relevance, :buying_intent, :raw_json,
+            :doi, :response_deadline, :notice_status
         )
     """
     with connection(path) as conn:
-        existing = conn.execute("SELECT title, url, source_type FROM signals").fetchall()
-        seen = {evidence_identity(row) for row in existing}
+        existing = conn.execute("SELECT * FROM signals").fetchall()
+        seen = {evidence_identity(row): row["id"] for row in existing}
         for row in rows:
             def number(name: str, default: float) -> float:
                 try:
@@ -175,17 +191,24 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
                 "relevance": number("relevance", 0.5),
                 "buying_intent": number("buying_intent", 0.2),
                 "raw_json": row.get("raw_json", "{}"),
+                "doi": row.get("doi") or "",
+                "response_deadline": row.get("response_deadline") or "",
+                "notice_status": row.get("notice_status") or "",
             }
             if not isinstance(clean["raw_json"], str):
                 clean["raw_json"] = json.dumps(clean["raw_json"], default=str)
             identity = evidence_identity(clean)
             if identity in seen:
+                # Refresh structured status fields without changing row IDs or reviews.
+                for field in ("doi", "response_deadline", "notice_status"):
+                    if clean[field]:
+                        conn.execute(f"UPDATE signals SET {field}=? WHERE id=?", (clean[field], seen[identity]))
                 skipped += 1
                 continue
             cursor = conn.execute(sql, clean)
             if cursor.rowcount:
                 inserted += 1
-                seen.add(identity)
+                seen[identity] = cursor.lastrowid
             else:
                 skipped += 1
     return inserted, skipped
@@ -194,7 +217,7 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
 def signals_df(path: str | None = None) -> pd.DataFrame:
     with connection(path) as conn:
         return pd.read_sql_query(
-            "SELECT * FROM signals ORDER BY COALESCE(published_date, collected_at) DESC", conn
+            "SELECT * FROM signals WHERE id NOT IN (SELECT signal_id FROM snapshot_members WHERE active=0) ORDER BY COALESCE(published_date, collected_at) DESC", conn
         )
 
 

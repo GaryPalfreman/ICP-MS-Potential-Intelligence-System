@@ -17,7 +17,7 @@ def test_entity_normalisation_is_conservative():
 
 
 def test_direct_tender_reaches_active_stage():
-    row = {"title": "Request for tender for an ICP-MS system", "signal_kind": "Procurement"}
+    row = {"title": "Request for tender for an ICP-MS system", "signal_kind": "Procurement", "response_deadline": (date.today() + timedelta(days=2)).isoformat(), "notice_status": "active"}
     assert sales_stage(row) == "Active tender"
 
 

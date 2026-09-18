@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from urllib.parse import quote
 
 import feedparser
+from .quality import source_relevance
 import requests
 from dateutil import parser as date_parser
 
@@ -126,7 +127,7 @@ def collect_crossref(query: str, days: int = 730, limit: int = 40) -> list[dict]
     for item in response.json().get("message", {}).get("items", []):
         title = _clean(" ".join(item.get("title", [])))
         summary = _clean(item.get("abstract", ""))
-        text = f"{title} {summary} {query}"
+        text = f"{title} {summary}"
         date_parts = item.get("published", {}).get("date-parts", [[]])[0]
         published = "-".join(str(x).zfill(2) for x in date_parts) if date_parts else None
         results.append({
@@ -135,6 +136,7 @@ def collect_crossref(query: str, days: int = 730, limit: int = 40) -> list[dict]
             "url": item.get("URL", ""),
             "source_name": item.get("publisher", "Crossref"),
             "source_type": "journal",
+            "doi": item.get("DOI", ""),
             "published_date": published,
             "sector": classify_sector(text),
             "region": "Global",
@@ -143,7 +145,7 @@ def collect_crossref(query: str, days: int = 730, limit: int = 40) -> list[dict]
             "signal_kind": "Research activity",
             "product_family": classify_product(text),
             "credibility": SOURCE_CREDIBILITY["journal"],
-            "relevance": 0.78 if "icp" in text.lower() else 0.55,
+            "relevance": source_relevance(text),
             "buying_intent": 0.28,
             "raw_json": item,
         })
@@ -159,14 +161,17 @@ def collect_europe_pmc(query: str, days: int = 730, limit: int = 40) -> list[dic
     for item in response.json().get("resultList", {}).get("result", []):
         title = _clean(item.get("title"))
         summary = _clean(item.get("journalTitle", ""))
-        text = f"{title} {summary} {query}"
+        text = f"{title} {summary}"
         identifier = item.get("doi") or item.get("pmcid") or item.get("pmid", "")
-        link = f"https://europepmc.org/article/MED/{item.get('pmid')}" if item.get("pmid") else ""
+        link = (f"https://doi.org/{item['doi']}" if item.get("doi") else
+                f"https://europepmc.org/article/{item.get('source', 'MED')}/{item.get('id') or item.get('pmid')}"
+                if item.get("id") or item.get("pmid") else "")
         results.append({
             "title": title or "Untitled Europe PMC record",
             "summary": summary,
             "url": link,
             "source_name": "Europe PMC",
+            "doi": item.get("doi", ""),
             "source_type": "journal",
             "published_date": _date(item.get("firstPublicationDate") or item.get("firstIndexDate")),
             "sector": classify_sector(text),
@@ -176,7 +181,7 @@ def collect_europe_pmc(query: str, days: int = 730, limit: int = 40) -> list[dic
             "signal_kind": "Research activity",
             "product_family": classify_product(text),
             "credibility": SOURCE_CREDIBILITY["journal"],
-            "relevance": 0.8 if "icp" in text.lower() else 0.55,
+            "relevance": source_relevance(text),
             "buying_intent": 0.26,
             "raw_json": {"id": identifier, **item},
         })
@@ -231,12 +236,13 @@ def collect_openalex(query: str, days: int = 730, limit: int = 40) -> list[dict]
             institutions.extend(authorship.get("institutions", []))
         institution = next((entry for entry in institutions if entry.get("display_name")), {})
         organization = _clean(institution.get("display_name"))
-        text = f"{title} {query}"
+        text = title
         rows.append({
             "title": title or "Untitled OpenAlex record",
             "summary": _clean(item.get("type_crossref") or item.get("type", "")),
             "url": item.get("doi") or item.get("id", ""),
             "source_name": "OpenAlex",
+            "doi": item.get("doi", ""),
             "source_type": "journal",
             "published_date": _date(item.get("publication_date")),
             "sector": classify_sector(text),
@@ -247,7 +253,7 @@ def collect_openalex(query: str, days: int = 730, limit: int = 40) -> list[dict]
             "signal_kind": "Research activity",
             "product_family": classify_product(text),
             "credibility": SOURCE_CREDIBILITY["journal"],
-            "relevance": 0.8 if "icp" in text.lower() else 0.5,
+            "relevance": source_relevance(text),
             "buying_intent": 0.3,
             "raw_json": {"openalex_id": item.get("id"), "institution_id": institution.get("id")},
         })
@@ -283,7 +289,7 @@ def collect_nih_reporter(query: str, days: int = 1095, limit: int = 40) -> list[
         org = item.get("organization") or {}
         title = _clean(item.get("project_title"))
         summary = _clean(item.get("abstract_text"))
-        text = f"{title} {summary} {query}"
+        text = f"{title} {summary}"
         project_num = item.get("project_num", "")
         rows.append({
             "title": title or "Untitled NIH-funded project",
@@ -299,7 +305,7 @@ def collect_nih_reporter(query: str, days: int = 1095, limit: int = 40) -> list[
             "signal_kind": "Funding",
             "product_family": classify_product(text),
             "credibility": SOURCE_CREDIBILITY["grant"],
-            "relevance": 0.82 if "icp" in text.lower() else 0.55,
+            "relevance": source_relevance(text),
             "buying_intent": 0.67,
             "raw_json": {"project_num": project_num, "award_amount": item.get("award_amount")},
         })
@@ -329,6 +335,8 @@ def collect_sam_gov(query: str, api_key: str, days: int = 90, limit: int = 100) 
             "summary": _clean(item.get("description"))[:2000],
             "url": f"https://sam.gov/opp/{notice_id}/view" if notice_id else "https://sam.gov/content/opportunities",
             "source_name": "SAM.gov",
+            "response_deadline": _date(item.get("responseDeadLine")),
+            "notice_status": "active" if str(item.get("active", "")).lower() == "yes" and str(item.get("type", "")).lower() in {"solicitation", "combined synopsis/solicitation"} else "unverified",
             "source_type": "procurement",
             "published_date": _date(item.get("postedDate")),
             "sector": classify_sector(text), "region": "United States",
@@ -399,6 +407,8 @@ def collect_ted_procurement(days: int = 730, limit: int = 250) -> list[dict]:
             "summary": summary[:2000],
             "url": f"https://ted.europa.eu/en/notice/-/detail/{notice_number}" if notice_number else "https://ted.europa.eu/",
             "source_name": "TED (EU procurement)",
+            "response_deadline": max(re.findall(r"\d{4}-\d{2}-\d{2}", deadlines), default=""),
+            "notice_status": "active",
             "source_type": "procurement",
             "published_date": _date(item.get("publication-date")),
             "sector": classify_sector(text),

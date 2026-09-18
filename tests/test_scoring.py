@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -11,6 +11,7 @@ def test_fresh_signal_scores_higher_than_old_signal():
 
 def test_procurement_signal_has_strong_score():
     score = signal_score({
+        "title": "ICP-MS tender", "response_deadline": (date.today() + timedelta(days=2)).isoformat(), "notice_status": "active",
         "signal_kind": "Procurement", "credibility": .92, "relevance": .9,
         "buying_intent": .95, "published_date": date.today().isoformat(),
     })
@@ -27,4 +28,3 @@ def test_corroboration_increases_organisation_score():
     one = organization_scores(pd.DataFrame([base]))
     three = organization_scores(pd.DataFrame([base, {**base, "signal_kind": "Hiring"}, {**base, "signal_kind": "Funding"}]))
     assert three.iloc[0]["opportunity_score"] > one.iloc[0]["opportunity_score"]
-

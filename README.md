@@ -16,7 +16,7 @@ It contains **no private company data or company branding**.
 - Manual and CSV evidence ingestion
 - Automatic sector, signal and product-family classification
 - Recency, credibility, relevance and purchasing-intent scoring
-- Cross-index journal deduplication with completeness-based record selection
+- DOI-first journal deduplication; distinct identifiers are never merged merely by title
 - Organisation-level corroboration scoring
 - Conservative organisation-name resolution
 - Evidence confidence, sales-stage and product-fit explanations
@@ -94,6 +94,26 @@ claim unattended Australian tender coverage.
 7. Export the report, workbook or MiroFish seed pack.
 
 ## Intelligence model
+
+### Accuracy-hardening release
+
+Relevance and classification use source titles and summaries, never search terms.
+Missing explicit ICP evidence is labelled for verification and receives a lower
+relevance score; absence in an abstract is not proof of irrelevance. Existing
+summaries may be truncated, and older title-only merges cannot be reconstructed
+without recollecting their sources. DOI identity takes priority, followed by exact
+source URL; identifier-free records use title, source and publication date.
+
+An open tender requires an explicit active status and a deadline after today.
+Due-today, expired and unverified notices are not counted as verified open tenders.
+Multi-lot TED deadlines indicate that at least one lot remains open; verify the
+specific ICP-MS lot before acting. Source outages retain prior evidence.
+
+Runtime snapshot sync updates managed records when the repository snapshot changes,
+preserving record IDs, reviews and manual entries. Removed managed records are
+archived rather than deleted. Legacy untracked runtime rows remain preserved.
+Confidence and product-fit scores remain heuristics—not calibrated probabilities.
+Future-dated publications do not contribute to recent trend or briefing counts.
 
 The application deliberately separates three concepts:
 

@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 
 import pandas as pd
+from .quality import source_relevance, tender_state
 
 
 STAGE_ORDER = {
@@ -25,7 +26,7 @@ KIND_TO_STAGE = {
     "Facility expansion": "Laboratory expansion",
     "Hiring": "ICP-MS hiring",
     "Market development": "Procurement planning",
-    "Procurement": "Active tender",
+    "Procurement": "Procurement planning",
     "Instrument installation": "Instrument installation",
     "Operational pain": "Consumables opportunity",
     "Regulation": "Procurement planning",
@@ -89,8 +90,8 @@ def canonical_organization(value: str | None) -> str:
 
 def sales_stage(row: dict | pd.Series) -> str:
     text = " ".join(str(row.get(key, "")) for key in ("title", "summary", "signal_kind")).lower()
-    if any(term in text for term in ("tender", "request for proposal", "request for tender", "rfp")):
-        return "Active tender"
+    if row.get("signal_kind") == "Procurement" or any(term in text for term in ("tender", "request for proposal", "request for tender", "rfp")):
+        return "Active tender" if tender_state(row) == "Open" else "Procurement planning"
     if any(term in text for term in (
         "installed", "installation", "commissioned", "commissions", "new instrument",
         "now operational", "invests in new", "new equipment",
@@ -110,7 +111,7 @@ def detect_vendor_and_model(text: str) -> tuple[str, str]:
 
 
 def product_fit(row: dict | pd.Series) -> tuple[str, float, str]:
-    text = " ".join(str(row.get(key, "")) for key in ("title", "summary", "product_family")).lower()
+    text = " ".join(str(row.get(key, "")) for key in ("title", "summary")).lower()
     assigned = str(row.get("product_family", "General sample introduction"))
     scores = {
         family: sum(term in text for term in details["applications"])
@@ -141,8 +142,13 @@ def evidence_confidence(row: dict | pd.Series, corroboration: int = 1) -> float:
         "Market development": 0.5,
         "Research activity": 0.38,
     }.get(str(row.get("signal_kind", "")), 0.4)
+    if row.get("signal_kind") == "Procurement" and tender_state(row) != "Open":
+        directness = .4
     support = min(math.log2(max(corroboration, 1) + 1) / 3, 1)
-    return round(100 * (0.38 * credibility + 0.24 * completeness + 0.28 * directness + 0.10 * support), 1)
+    confidence = 100 * (0.38 * credibility + 0.24 * completeness + 0.28 * directness + 0.10 * support)
+    if source_relevance(f"{row.get('title', '')} {row.get('summary', '')}") < .8:
+        confidence = min(confidence, 60)
+    return round(confidence, 1)
 
 
 def enrich_signals(df: pd.DataFrame) -> pd.DataFrame:
@@ -158,6 +164,10 @@ def enrich_signals(df: pd.DataFrame) -> pd.DataFrame:
         if column not in out.columns:
             out[column] = default
     out["organization"] = out["organization"].fillna("").map(canonical_organization)
+    out["relevance_basis"] = out.apply(
+        lambda row: "Explicit ICP evidence" if source_relevance(f"{row['title']} {row['summary']}") >= .8
+        else "Needs source verification", axis=1)
+    out["tender_status"] = out.apply(lambda row: tender_state(row) if row["signal_kind"] == "Procurement" else "Not a tender", axis=1)
     detected = out.apply(lambda row: detect_vendor_and_model(f"{row.get('title', '')} {row.get('summary', '')}"), axis=1)
     if "instrument_vendor" not in out.columns:
         out["instrument_vendor"] = ""
@@ -188,7 +198,7 @@ def trend_acceleration(df: pd.DataFrame, today: date | None = None) -> pd.DataFr
     prior_start = current - timedelta(days=180)
     rows = []
     for sector, group in work.groupby("sector"):
-        recent = int(group["_date"].apply(lambda value: bool(pd.notna(value) and value >= recent_start)).sum())
+        recent = int(group["_date"].apply(lambda value: bool(pd.notna(value) and recent_start <= value <= current)).sum())
         prior = int(group["_date"].apply(lambda value: bool(pd.notna(value) and prior_start <= value < recent_start)).sum())
         acceleration = (recent + 2) / (prior + 2)
         momentum = "Accelerating" if recent >= 3 and acceleration >= 1.35 else "Cooling" if prior >= 3 and acceleration <= 0.74 else "Stable"
@@ -202,7 +212,7 @@ def daily_briefing(df: pd.DataFrame, days: int = 7) -> dict:
     enriched = enrich_signals(df)
     cutoff = date.today() - timedelta(days=days)
     dates = pd.to_datetime(enriched["published_date"], errors="coerce").dt.date
-    recent = enriched[dates.apply(lambda value: bool(pd.notna(value) and value >= cutoff))]
+    recent = enriched[dates.apply(lambda value: bool(pd.notna(value) and cutoff <= value <= date.today()))]
     organizations = recent[recent["organization"] != ""]["organization"].value_counts().head(5).index.tolist()
     sectors = recent["sector"].value_counts().head(5).index.tolist()
     return {

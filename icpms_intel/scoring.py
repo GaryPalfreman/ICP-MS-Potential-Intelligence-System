@@ -6,6 +6,7 @@ from datetime import date, datetime
 import pandas as pd
 
 from .intelligence import STAGE_ORDER, enrich_signals
+from .quality import source_relevance, tender_state
 
 
 INTENT_WEIGHTS = {
@@ -35,9 +36,12 @@ def freshness(published_date: str | None, half_life_days: int = 365) -> float:
 def signal_score(row: dict | pd.Series) -> float:
     kind = str(row.get("signal_kind", "Research activity"))
     intent = max(float(row.get("buying_intent", 0.2)), INTENT_WEIGHTS.get(kind, 0.3))
+    if kind == "Procurement" and tender_state(row) != "Open":
+        intent = min(intent, .4)
+    relevance = min(float(row.get("relevance", .5)), source_relevance(f"{row.get('title', '')} {row.get('summary', '')}"))
     score = (
         0.30 * float(row.get("credibility", 0.5))
-        + 0.25 * float(row.get("relevance", 0.5))
+        + 0.25 * relevance
         + 0.30 * intent
         + 0.15 * freshness(row.get("published_date"))
     )

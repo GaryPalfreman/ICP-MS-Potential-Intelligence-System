@@ -39,7 +39,7 @@ def test_missing_urls_do_not_bypass_deduplication(tmp_path):
 
 def test_journal_deduplication_prefers_more_complete_record():
     frame = pd.DataFrame([
-        {"title": "An ICP-MS Study", "url": "", "source_type": "journal", "summary": "", "credibility": .8},
+        {"title": "An ICP-MS Study", "url": "https://doi.org/10.1/example", "source_type": "journal", "summary": "", "credibility": .8},
         {"title": "An ICP–MS Study", "url": "https://doi.org/10.1/example", "source_type": "journal", "summary": "Full abstract", "credibility": .8},
     ])
     result, removed = deduplicate_snapshot(frame)

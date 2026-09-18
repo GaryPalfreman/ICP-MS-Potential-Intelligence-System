@@ -19,6 +19,7 @@ from icpms_intel.database import init_db, insert_signals, signals_df
 from icpms_intel.seed import DEFAULT_QUERIES, GRANT_QUERIES, starter_signals
 from icpms_intel.snapshots import SNAPSHOT_PATH, STATUS_PATH, deduplicate_snapshot, load_public_snapshot
 from icpms_intel.taxonomy import classify_product, classify_sector, classify_signal
+from icpms_intel.quality import source_relevance
 
 
 def main() -> int:
@@ -85,8 +86,10 @@ def main() -> int:
             except Exception as exc:
                 errors.append(f"Public news RSS [{query}]: {exc}")
 
+        ted_succeeded = False
         try:
             collected.extend(collect_ted_procurement(days=730, limit=250))
+            ted_succeeded = True
         except Exception as exc:
             errors.append(f"TED procurement: {exc}")
 
@@ -108,10 +111,15 @@ def main() -> int:
             if row.get("source_name") == "TED (EU procurement)"
         }
         ted_mask = snapshot["source_name"].eq("TED (EU procurement)")
-        snapshot = snapshot[~ted_mask | snapshot["url"].isin(current_ted_urls)].copy()
+        if ted_succeeded:
+            snapshot = snapshot[~ted_mask | snapshot["url"].isin(current_ted_urls)].copy()
         # Re-evaluate text-derived fields so taxonomy improvements also upgrade
         # previously stored news records rather than only brand-new URLs.
         text = (snapshot["title"].fillna("") + " " + snapshot["summary"].fillna(""))
+        snapshot["relevance"] = text.map(source_relevance)
+        research_mask = snapshot["source_type"].isin(["journal", "grant"])
+        snapshot.loc[research_mask, "sector"] = text[research_mask].map(classify_sector)
+        snapshot.loc[research_mask, "product_family"] = text[research_mask].map(classify_product)
         news_mask = snapshot["source_type"].eq("news")
         snapshot.loc[news_mask, "signal_kind"] = text[news_mask].map(classify_signal)
         snapshot.loc[news_mask, "sector"] = text[news_mask].map(classify_sector)
@@ -122,7 +130,7 @@ def main() -> int:
             "Operational pain": .62, "Research activity": .32,
         }
         snapshot.loc[news_mask, "buying_intent"] = snapshot.loc[news_mask, "signal_kind"].map(intent).fillna(.32)
-        snapshot["summary"] = snapshot["summary"].fillna("").astype(str).str.slice(0, 240)
+        snapshot["summary"] = snapshot["summary"].fillna("").astype(str).str.slice(0, 2000)
         snapshot = snapshot.sort_values(["published_date", "title"], ascending=[False, True], na_position="last")
         # TED can publish several amendments for the same buyer and procedure.
         # Count the newest version once so amendments do not mimic corroboration.
