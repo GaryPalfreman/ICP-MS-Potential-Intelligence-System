@@ -1,0 +1,104 @@
+# ICP-MS Potential Intelligence System
+
+A deployable public-data market-intelligence application for monitoring ICP-MS trends, identifying potential organisations, mapping demand signals to product families, and testing future scenarios.
+
+It contains **no private company data or company branding**.
+
+## What works
+
+- Evidence-backed dashboard with source URLs
+- Live collection from Crossref and Europe PMC
+- RSS/Atom monitoring for approved public sources
+- Manual and CSV evidence ingestion
+- Automatic sector, signal and product-family classification
+- Recency, credibility, relevance and purchasing-intent scoring
+- Organisation-level corroboration scoring
+- Conservative/expected/accelerated Monte Carlo scenarios
+- Markdown, Excel, CSV and MiroFish-ready JSON exports
+- SQLite persistence
+- Docker and Streamlit deployment support
+
+## Quick start
+
+### Python
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Open <http://localhost:8501>.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+## Deploy on Streamlit Community Cloud
+
+1. Create a GitHub repository and upload this project.
+2. In Streamlit Community Cloud, select the repository.
+3. Set the main file to `app.py`.
+4. Deploy. No secret or paid API is required for the core system.
+
+SQLite is appropriate for a single-user deployment. For a multi-user production deployment, replace it with managed PostgreSQL and add authentication.
+
+## Recommended workflow
+
+1. Review the starter signals.
+2. Use **Live Research** to collect current papers for the saved queries.
+3. Add public tenders, grants, hiring notices and facility announcements.
+4. Verify source URLs in **Signals**.
+5. Review corroborated organisations.
+6. Test assumptions in **Scenario Lab**.
+7. Export the report, workbook or MiroFish seed pack.
+
+## Scoring
+
+Signal score:
+
+- 30% source credibility
+- 25% ICP-MS relevance
+- 30% purchasing-intent strength
+- 15% recency
+
+Organisation scoring combines up to six corroborating public signals. Scores indicate research priority only; they do not establish purchasing intent.
+
+## Scenario model
+
+The scenario engine runs 5,000 deterministic Monte Carlo trials around transparent sector-growth assumptions. A baseline index of 100 represents the present. Outputs are comparative opportunity indices with 10th–90th percentile ranges, not sales-volume or revenue promises.
+
+## Public-data and privacy rules
+
+- Retain a source URL for every factual claim.
+- Separate verified facts, inferences and simulations.
+- Do not upload confidential customer, employee or employer data.
+- Do not infer sensitive personal characteristics.
+- Verify prospective organisations before contact.
+- Observe website terms and robots rules when adding new collectors.
+
+## MiroFish
+
+The **Reports & Export** page creates a domain-specific JSON seed pack containing:
+
+- The prediction question
+- Agent archetypes
+- Simulation rules
+- Sector and product outlooks
+- Up to 200 evidence records
+
+This can be supplied to a separately deployed MiroFish instance. MiroFish requires its own LLM and memory-service configuration; the core intelligence system does not.
+
+## Test
+
+```bash
+pip install pytest xlsxwriter
+pytest -q
+```
+
+## Disclaimer
+
+This application is a research and decision-support tool. It does not provide financial advice, guarantee purchases, establish customer intent, or replace human technical and commercial review.
