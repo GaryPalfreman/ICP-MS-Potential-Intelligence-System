@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable
@@ -11,6 +13,28 @@ import pandas as pd
 
 
 DEFAULT_DB = os.getenv("ICPMS_DB_PATH", "data/intelligence.db")
+
+
+def evidence_identity(row: dict | sqlite3.Row) -> tuple[str, ...]:
+    """Return a conservative identity key for one public-evidence record.
+
+    Academic indexes frequently expose the same paper through different URLs,
+    while missing URLs previously became SQLite NULL values that bypassed the
+    database UNIQUE constraint. Journal titles are therefore deduplicated by a
+    normalized title; other evidence retains distinct non-empty source URLs.
+    """
+    def value(name: str, default: str = ""):
+        if isinstance(row, sqlite3.Row):
+            return row[name] if name in row.keys() else default
+        return row.get(name, default)
+
+    title = unicodedata.normalize("NFKC", str(value("title") or "")).casefold()
+    title = re.sub(r"[^\w]+", " ", title, flags=re.UNICODE).strip()
+    source_type = str(value("source_type", "other") or "other").strip().casefold()
+    url = str(value("url") or "").strip().casefold()
+    if source_type == "journal":
+        return ("journal", title)
+    return ("record", title, url)
 
 
 def db_path(path: str | None = None) -> Path:
@@ -122,32 +146,46 @@ def insert_signals(rows: Iterable[dict], path: str | None = None) -> tuple[int, 
         )
     """
     with connection(path) as conn:
+        existing = conn.execute("SELECT title, url, source_type FROM signals").fetchall()
+        seen = {evidence_identity(row) for row in existing}
         for row in rows:
+            def number(name: str, default: float) -> float:
+                try:
+                    value = row.get(name)
+                    return float(value) if value not in (None, "") else default
+                except (TypeError, ValueError):
+                    return default
+
             clean = {
-                "title": row.get("title", "Untitled signal"),
-                "summary": row.get("summary", ""),
-                "url": row.get("url", ""),
-                "source_name": row.get("source_name", ""),
-                "source_type": row.get("source_type", "other"),
+                "title": row.get("title") or "Untitled signal",
+                "summary": row.get("summary") or "",
+                "url": row.get("url") or "",
+                "source_name": row.get("source_name") or "",
+                "source_type": row.get("source_type") or "other",
                 "published_date": row.get("published_date"),
-                "sector": row.get("sector", "General ICP-MS"),
-                "region": row.get("region", "Global"),
-                "organization": row.get("organization", ""),
-                "organization_id": row.get("organization_id", ""),
-                "instrument_vendor": row.get("instrument_vendor", ""),
-                "instrument_model": row.get("instrument_model", ""),
-                "signal_kind": row.get("signal_kind", "Research activity"),
-                "product_family": row.get("product_family", "General sample introduction"),
-                "credibility": float(row.get("credibility", 0.5)),
-                "relevance": float(row.get("relevance", 0.5)),
-                "buying_intent": float(row.get("buying_intent", 0.2)),
+                "sector": row.get("sector") or "General ICP-MS",
+                "region": row.get("region") or "Global",
+                "organization": row.get("organization") or "",
+                "organization_id": row.get("organization_id") or "",
+                "instrument_vendor": row.get("instrument_vendor") or "",
+                "instrument_model": row.get("instrument_model") or "",
+                "signal_kind": row.get("signal_kind") or "Research activity",
+                "product_family": row.get("product_family") or "General sample introduction",
+                "credibility": number("credibility", 0.5),
+                "relevance": number("relevance", 0.5),
+                "buying_intent": number("buying_intent", 0.2),
                 "raw_json": row.get("raw_json", "{}"),
             }
             if not isinstance(clean["raw_json"], str):
                 clean["raw_json"] = json.dumps(clean["raw_json"], default=str)
+            identity = evidence_identity(clean)
+            if identity in seen:
+                skipped += 1
+                continue
             cursor = conn.execute(sql, clean)
             if cursor.rowcount:
                 inserted += 1
+                seen.add(identity)
             else:
                 skipped += 1
     return inserted, skipped

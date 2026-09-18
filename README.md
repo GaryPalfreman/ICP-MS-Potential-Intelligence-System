@@ -16,6 +16,7 @@ It contains **no private company data or company branding**.
 - Manual and CSV evidence ingestion
 - Automatic sector, signal and product-family classification
 - Recency, credibility, relevance and purchasing-intent scoring
+- Cross-index journal deduplication with completeness-based record selection
 - Organisation-level corroboration scoring
 - Conservative organisation-name resolution
 - Evidence confidence, sales-stage and product-fit explanations

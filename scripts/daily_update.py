@@ -17,7 +17,7 @@ from icpms_intel.collectors import (
 )
 from icpms_intel.database import init_db, insert_signals, signals_df
 from icpms_intel.seed import DEFAULT_QUERIES, GRANT_QUERIES, starter_signals
-from icpms_intel.snapshots import SNAPSHOT_PATH, STATUS_PATH, load_public_snapshot
+from icpms_intel.snapshots import SNAPSHOT_PATH, STATUS_PATH, deduplicate_snapshot, load_public_snapshot
 from icpms_intel.taxonomy import classify_product, classify_sector, classify_signal
 
 
@@ -129,6 +129,7 @@ def main() -> int:
         ted_mask = snapshot["source_name"].eq("TED (EU procurement)")
         ted = snapshot[ted_mask].drop_duplicates(subset=["organization", "title"], keep="first")
         snapshot = pd.concat([snapshot[~ted_mask], ted], ignore_index=True)
+        snapshot, duplicate_records_removed = deduplicate_snapshot(snapshot)
         snapshot = snapshot.sort_values(["published_date", "title"], ascending=[False, True], na_position="last")
         snapshot.to_csv(SNAPSHOT_PATH, index=False)
         # Fail before commit if a malformed or empty snapshot would replace good evidence.
@@ -150,6 +151,7 @@ def main() -> int:
         "records_received": len(collected),
         "new_records": inserted,
         "duplicates_skipped": skipped,
+        "duplicate_records_removed": duplicate_records_removed,
         "snapshot_records": len(snapshot),
         "ted_procurement_records": int(snapshot["source_name"].eq("TED (EU procurement)").sum()),
         "ted_buyers": int(snapshot.loc[snapshot["source_name"].eq("TED (EU procurement)"), "organization"].nunique()),

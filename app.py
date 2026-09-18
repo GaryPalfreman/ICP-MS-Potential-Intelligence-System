@@ -113,7 +113,10 @@ if page == "Overview":
             st.warning(f"The latest scheduled update completed with source warnings ({updated}). Existing evidence remains available.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Evidence signals", f"{len(signals):,}")
-    c2.metric("Named organisations", f"{signals['organization'].fillna('').str.strip().ne('').sum():,}" if not signals.empty else "0")
+    named_organizations = signals.loc[
+        signals["organization"].fillna("").str.strip().ne(""), "organization"
+    ].nunique() if not signals.empty else 0
+    c2.metric("Named organisations", f"{named_organizations:,}")
     c3.metric("High-value signals", f"{(signals['opportunity_score'] >= 70).sum():,}" if not signals.empty else "0")
     c4.metric("Open tenders", f"{signals['signal_kind'].eq('Procurement').sum():,}" if not signals.empty else "0")
     brief = daily_briefing(signals)
