@@ -177,6 +177,17 @@ For a self-hosted MiroFish deployment, put `backend/uploads` on durable storage.
 Docker Compose file this is the `./backend/uploads:/app/backend/uploads` volume. Back that directory
 up independently; rebuilding a container without the volume can lose the local project and run files.
 
+### One-click local MiroFish integration
+
+The **Send directly to MiroFish** panel creates a MiroFish project, uploads the current Markdown seed,
+generates its ontology and starts the knowledge-graph build. The default endpoints are
+`http://localhost:5001` for the API and `http://localhost:3000` for the interface.
+
+`localhost` is resolved by the Streamlit server, not by the viewer's browser. Therefore the direct
+button works when Streamlit and MiroFish are running on the same Windows computer. The hosted
+Streamlit application cannot reach a MiroFish instance on a user's private localhost; use the existing
+Markdown download/upload workflow there, or configure a secured network-reachable MiroFish endpoint.
+
 ## Test
 
 ```bash

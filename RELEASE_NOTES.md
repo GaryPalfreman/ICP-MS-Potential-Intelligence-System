@@ -1,3 +1,10 @@
+# 2.4.0 — One-click local MiroFish projects
+
+- Added a **Create and build in MiroFish** action that uploads the current seed, generates the
+  ontology, starts the graph build and links directly to the resulting local MiroFish project.
+- Added configurable MiroFish API and interface addresses with clear local-versus-hosted guidance.
+- Preserved the Markdown and history ZIP workflow as the portable and hosted fallback.
+
 # 2.3.0 — MiroFish compatibility and replayable history
 
 - Replaced the incorrectly labelled JSON upload with a Markdown seed accepted by the official

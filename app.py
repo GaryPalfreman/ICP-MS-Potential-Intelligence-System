@@ -37,6 +37,7 @@ from icpms_intel.verification import (
     evidence_key, source_fingerprint, prospective_outcomes,
 )
 from icpms_intel.intelligence import calibration_metrics, daily_briefing, enrich_signals, trend_acceleration
+from icpms_intel.mirofish import MiroFishConnectionError, create_and_build_project
 from icpms_intel.reporting import (
     DEFAULT_MIROFISH_QUESTION,
     intelligence_report,
@@ -575,6 +576,46 @@ elif page == "Reports & Export":
         "In MiroFish, create a project, upload the Markdown seed, and paste the saved simulation "
         "requirement. Keep the ZIP as the dated audit and recovery copy for that run."
     )
+    with st.expander("Send directly to MiroFish", expanded=False):
+        st.caption(
+            "One click creates the project and starts its knowledge-graph build. For localhost "
+            "addresses, this Streamlit app must also be running on your Windows computer."
+        )
+        endpoint_left, endpoint_right = st.columns(2)
+        mirofish_api_url = endpoint_left.text_input(
+            "MiroFish API",
+            value=os.getenv("MIROFISH_API_URL", "http://localhost:5001"),
+        )
+        mirofish_frontend_url = endpoint_right.text_input(
+            "MiroFish interface",
+            value=os.getenv("MIROFISH_FRONTEND_URL", "http://localhost:3000"),
+        )
+        project_name = st.text_input(
+            "MiroFish project name",
+            value=f"ICP-MS Intelligence {date.today().isoformat()}",
+        )
+        if st.button("Create and build in MiroFish", type="primary", width="stretch"):
+            try:
+                with st.spinner("Uploading the seed and generating the MiroFish ontology…"):
+                    st.session_state["mirofish_project"] = create_and_build_project(
+                        seed_document,
+                        simulation_question,
+                        mirofish_api_url,
+                        mirofish_frontend_url,
+                        project_name,
+                    )
+            except MiroFishConnectionError as exc:
+                st.error(str(exc))
+        mirofish_project = st.session_state.get("mirofish_project")
+        if mirofish_project:
+            st.success(
+                f"MiroFish project {mirofish_project.project_id} was created and its graph build started."
+            )
+            st.link_button(
+                "Open project in MiroFish",
+                mirofish_project.project_url,
+                width="stretch",
+            )
     c1, c2, c3, c4 = st.columns(4)
     c1.download_button("Download report", report, "ICP-MS_Potential_Intelligence_Report.md", "text/markdown", width="stretch")
     c2.download_button("Download MiroFish seed", seed_document, "ICP-MS_MiroFish_Seed.md", "text/markdown", width="stretch")
@@ -592,7 +633,7 @@ elif page == "Settings":
     st.subheader("System status")
     update_status = read_update_status()
     st.json({
-        "version": "2.3.0",
+        "version": "2.4.0",
         "database": "SQLite runtime store restored from repository-backed public snapshot",
         "scheduled_update": "Daily at 19:00 UTC (05:00 AEST / 06:00 AEDT)",
         "last_update": update_status or "Waiting for first scheduled run",
