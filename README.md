@@ -188,6 +188,14 @@ button works when Streamlit and MiroFish are running on the same Windows compute
 Streamlit application cannot reach a MiroFish instance on a user's private localhost; use the existing
 Markdown download/upload workflow there, or configure a secured network-reachable MiroFish endpoint.
 
+On Windows, the included Docker Compose configuration provides the recommended local pairing without
+a separate Python installation. It routes the Streamlit container to MiroFish through
+`http://host.docker.internal:5001` while keeping the browser link at `http://localhost:3000`:
+
+```powershell
+docker compose up -d --build
+```
+
 ## Test
 
 ```bash

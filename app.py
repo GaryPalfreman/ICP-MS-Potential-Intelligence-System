@@ -633,7 +633,7 @@ elif page == "Settings":
     st.subheader("System status")
     update_status = read_update_status()
     st.json({
-        "version": "2.4.0",
+        "version": "2.4.1",
         "database": "SQLite runtime store restored from repository-backed public snapshot",
         "scheduled_update": "Daily at 19:00 UTC (05:00 AEST / 06:00 AEDT)",
         "last_update": update_status or "Waiting for first scheduled run",

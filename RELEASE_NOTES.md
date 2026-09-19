@@ -1,3 +1,9 @@
+# 2.4.1 — Windows Docker bridge
+
+- Connected the local Streamlit container to the Windows-hosted MiroFish API through
+  `host.docker.internal`, removing the requirement for a separate local Python installation.
+- Preserved the browser-facing MiroFish project links at `http://localhost:3000`.
+
 # 2.4.0 — One-click local MiroFish projects
 
 - Added a **Create and build in MiroFish** action that uploads the current seed, generates the
