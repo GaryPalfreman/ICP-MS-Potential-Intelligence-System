@@ -37,7 +37,12 @@ from icpms_intel.verification import (
     evidence_key, source_fingerprint, prospective_outcomes,
 )
 from icpms_intel.intelligence import calibration_metrics, daily_briefing, enrich_signals, trend_acceleration
-from icpms_intel.mirofish import MiroFishConnectionError, create_and_build_project
+from icpms_intel.mirofish import (
+    MiroFishConnectionError,
+    configured_value,
+    create_and_build_project,
+    default_connection_mode,
+)
 from icpms_intel.reporting import (
     DEFAULT_MIROFISH_QUESTION,
     intelligence_report,
@@ -577,18 +582,68 @@ elif page == "Reports & Export":
         "requirement. Keep the ZIP as the dated audit and recovery copy for that run."
     )
     with st.expander("Send directly to MiroFish", expanded=False):
-        st.caption(
-            "One click creates the project and starts its knowledge-graph build. For localhost "
-            "addresses, this Streamlit app must also be running on your Windows computer."
+        try:
+            mirofish_secrets = st.secrets
+        except Exception:
+            mirofish_secrets = {}
+        configured_api = configured_value("MIROFISH_API_URL", mirofish_secrets)
+        configured_frontend = configured_value("MIROFISH_FRONTEND_URL", mirofish_secrets)
+        configured_mode = configured_value("MIROFISH_MODE", mirofish_secrets)
+        configured_token = configured_value("MIROFISH_API_TOKEN", mirofish_secrets)
+        access_client_id = configured_value("MIROFISH_ACCESS_CLIENT_ID", mirofish_secrets)
+        access_client_secret = configured_value("MIROFISH_ACCESS_CLIENT_SECRET", mirofish_secrets)
+        try:
+            streamlit_url = st.context.url
+        except Exception:
+            streamlit_url = ""
+        initial_mode = default_connection_mode(
+            streamlit_url, configured_mode, configured_api
         )
+        st.caption(
+            "The connection is made by the Streamlit server. Localhost points to that server, "
+            "not to the browser viewing this page."
+        )
+        connection_mode = st.radio(
+            "Connection mode",
+            options=["local", "hosted"],
+            index=0 if initial_mode == "local" else 1,
+            format_func=lambda value: "Local MiroFish" if value == "local" else "Hosted MiroFish",
+            horizontal=True,
+            key="mirofish_connection_mode",
+        )
+        if connection_mode == "hosted":
+            st.info(
+                "Hosted Streamlit needs a separately deployed MiroFish API with a public HTTPS "
+                "address. A service on your PC, including localhost and host.docker.internal, "
+                "is not reachable from Streamlit Community Cloud."
+            )
+            api_default = configured_api if configured_api.lower().startswith("https://") else ""
+            if configured_api and not api_default:
+                st.warning(
+                    "The configured MiroFish API URL is not HTTPS and cannot be used from Hosted "
+                    "mode. Set MIROFISH_API_URL to a public HTTPS endpoint in Streamlit secrets."
+                )
+        else:
+            st.caption(
+                "Run Streamlit locally with MiroFish. Native Streamlit uses localhost; the local "
+                "Docker Compose setup uses host.docker.internal."
+            )
+            api_default = configured_api or "http://localhost:5001"
         endpoint_left, endpoint_right = st.columns(2)
         mirofish_api_url = endpoint_left.text_input(
             "MiroFish API",
-            value=os.getenv("MIROFISH_API_URL", "http://localhost:5001"),
+            value=api_default,
+            key="mirofish_api_url",
+            help="Hosted mode requires a public HTTPS URL configured in Streamlit secrets or environment variables.",
+        )
+        frontend_default = configured_frontend or (
+            mirofish_api_url if connection_mode == "hosted" and mirofish_api_url else "http://localhost:3000"
         )
         mirofish_frontend_url = endpoint_right.text_input(
             "MiroFish interface",
-            value=os.getenv("MIROFISH_FRONTEND_URL", "http://localhost:3000"),
+            value=frontend_default,
+            key="mirofish_frontend_url",
+            help="For hosted deployment, use its public HTTPS frontend URL (or leave it on the API origin if both share one host).",
         )
         project_name = st.text_input(
             "MiroFish project name",
@@ -596,6 +651,15 @@ elif page == "Reports & Export":
         )
         if st.button("Create and build in MiroFish", type="primary", width="stretch"):
             try:
+                if connection_mode == "hosted" and not mirofish_api_url.strip():
+                    raise MiroFishConnectionError(
+                        "Configure MIROFISH_API_URL as a public HTTPS URL in Streamlit Cloud secrets "
+                        "or environment variables before using Hosted MiroFish."
+                    )
+                if connection_mode == "hosted" and not mirofish_frontend_url.strip():
+                    raise MiroFishConnectionError(
+                        "Configure the public HTTPS MiroFish interface URL in MIROFISH_FRONTEND_URL."
+                    )
                 with st.spinner("Uploading the seed and generating the MiroFish ontology…"):
                     st.session_state["mirofish_project"] = create_and_build_project(
                         seed_document,
@@ -603,6 +667,10 @@ elif page == "Reports & Export":
                         mirofish_api_url,
                         mirofish_frontend_url,
                         project_name,
+                        mode=connection_mode,
+                        api_token=configured_token,
+                        access_client_id=access_client_id,
+                        access_client_secret=access_client_secret,
                     )
             except MiroFishConnectionError as exc:
                 st.error(str(exc))

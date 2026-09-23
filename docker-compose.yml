@@ -5,6 +5,7 @@ services:
       - "8501:8501"
     environment:
       - ICPMS_DB_PATH=/app/data/intelligence.db
+      - MIROFISH_MODE=local
       - MIROFISH_API_URL=http://host.docker.internal:5001
       - MIROFISH_FRONTEND_URL=http://localhost:3000
     extra_hosts:

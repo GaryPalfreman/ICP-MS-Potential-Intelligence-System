@@ -190,11 +190,11 @@ def prospective_outcomes(predictions, observations, today=None):
     rows = []
     for row in predictions.to_dict('records'):
         start = pd.to_datetime(row['recorded_at'], utc=True)
-        end = start + pd.Timedelta(days=int(row['horizon_days']))
+        end = start + pd.Timedelta(int(row['horizon_days']), unit='D')
         hits = observed if observed.empty else observed[
             observed['organization'].eq(canonical_organization(row['organization'])) &
-            observed['time'].gt(start) & observed['time'].le(min(end, today + pd.Timedelta(days=1))) &
-            observed['published'].ge(start.normalize()) & observed['published'].le(today + pd.Timedelta(days=1)) &
+            observed['time'].gt(start) & observed['time'].le(min(end, today + pd.Timedelta(1, unit='D'))) &
+            observed['published'].ge(start.normalize()) & observed['published'].le(today + pd.Timedelta(1, unit='D')) &
             observed['signal_kind'].isin(['Procurement', 'Instrument installation'])]
         state = 'Later public signal observed' if len(hits) else 'Pending' if today < end else 'No later signal observed (not a negative purchase label)'
         rows.append({**row, 'evaluation': state, 'supporting_url': hits.iloc[0]['url'] if len(hits) else ''})

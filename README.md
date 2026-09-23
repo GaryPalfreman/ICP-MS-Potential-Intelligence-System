@@ -183,18 +183,50 @@ The **Send directly to MiroFish** panel creates a MiroFish project, uploads the 
 generates its ontology and starts the knowledge-graph build. The default endpoints are
 `http://localhost:5001` for the API and `http://localhost:3000` for the interface.
 
-`localhost` is resolved by the Streamlit server, not by the viewer's browser. Therefore the direct
-button works when Streamlit and MiroFish are running on the same Windows computer. The hosted
-Streamlit application cannot reach a MiroFish instance on a user's private localhost; use the existing
-Markdown download/upload workflow there, or configure a secured network-reachable MiroFish endpoint.
+Choose **Local MiroFish** when Streamlit and MiroFish run on your computer. `localhost` is resolved by
+the Streamlit server: native Streamlit uses `http://localhost:5001`, while the included local Docker
+Compose pairing uses `http://host.docker.internal:5001`. The browser interface URL is
+`http://localhost:3000` in either local setup. A checked-in example for native Streamlit settings is
+`.streamlit/secrets.toml.example`; copy it to `.streamlit/secrets.toml` and keep that file private.
 
-On Windows, the included Docker Compose configuration provides the recommended local pairing without
-a separate Python installation. It routes the Streamlit container to MiroFish through
-`http://host.docker.internal:5001` while keeping the browser link at `http://localhost:3000`:
+The hosted app at `https://icp-ms-potential-intelligence-system.streamlit.app` runs on Streamlit
+Community Cloud. Its `localhost` and `host.docker.internal` refer to the cloud server/container, not
+your Windows computer. Select **Hosted MiroFish** and configure these values in the app's Streamlit
+Cloud secrets (or its environment variables):
+
+```toml
+MIROFISH_MODE = "hosted"
+MIROFISH_API_URL = "https://your-public-mirofish.example.com"
+MIROFISH_FRONTEND_URL = "https://your-public-mirofish.example.com"
+# Optional bearer token for an HTTPS gateway that protects the MiroFish API.
+MIROFISH_API_TOKEN = "your-gateway-token"
+```
+
+The API URL must be a public HTTPS endpoint reachable from Streamlit Cloud. The frontend URL must
+also be publicly reachable over HTTPS so the created project link opens from the browser. The optional
+bearer token is sent by the Streamlit server to the API and is never shown in the UI or included in
+connection errors. A MiroFish deployment without gateway authentication remains publicly callable;
+protect it at the HTTPS reverse proxy before making it reachable from the internet.
+
+For a Cloudflare Tunnel protected by Cloudflare Access, configure a Service Auth policy for the
+MiroFish hostname and put its credentials in Streamlit Cloud secrets as
+`MIROFISH_ACCESS_CLIENT_ID` and `MIROFISH_ACCESS_CLIENT_SECRET`. The app sends these only from its
+server-side API requests. Keep an interactive identity policy enabled for browser access to the
+MiroFish interface as well.
+
+The current MiroFish Compose setup is for local use. Connecting Streamlit Cloud to MiroFish still
+running on your PC requires a separately approved secure tunnel or moving MiroFish to a public host
+behind HTTPS. This change does not create a tunnel, publish a service, expose a port, or alter either
+cloud deployment. Until that endpoint exists, use the Markdown seed download/upload workflow.
+
+On Windows, run the local Docker pairing without a separate Python installation:
 
 ```powershell
 docker compose up -d --build
 ```
+
+Open Streamlit at `http://localhost:8501`; Compose configures its server-side API route to
+`host.docker.internal` and its browser link to `localhost:3000`.
 
 ## Test
 
